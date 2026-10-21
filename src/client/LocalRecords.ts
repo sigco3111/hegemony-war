@@ -102,8 +102,8 @@ export function loadRecords(): LocalRecordsData {
  * rotation forever. 전적(games)·업적(wins) 데이터는 건드리지 않는다.
  */
 function migrateScenarioGateV2(data: LocalRecordsData): LocalRecordsData {
-  if (data.migrations?.scenarioGateV2 === true) return data;
-  data.migrations = { ...data.migrations, scenarioGateV2: true };
+  if (data.migrations?.scenarioGateV3 === true) return data;
+  data.migrations = { ...data.migrations, scenarioGateV2: true, scenarioGateV3: true };
   data.challengeProofs ??= {};
 
   const wins = data.games.filter(
@@ -135,6 +135,17 @@ function migrateScenarioGateV2(data: LocalRecordsData): LocalRecordsData {
         : undefined;
     if (wrongGrant !== undefined) continue; // proven old-gate grant: revoke
     kept.push(id); // no evidence: preserve
+  }
+  // Evidence-based restore: a clear deleted without a surviving trace
+  // (the brief revalidate build kept no backup) returns only when a
+  // stored win satisfies the CURRENT gate. Absent evidence grants nothing.
+  for (const def of CHALLENGES) {
+    if (def.id === GRAND_HEGEMON_ID || kept.includes(def.id)) continue;
+    const validRecord = wins.find((g) => def.check(g));
+    if (validRecord !== undefined) {
+      data.challengeProofs[def.id] = validRecord;
+      kept.push(def.id);
+    }
   }
   const allOthersCleared = CHALLENGES.every(
     (c) => c.id === GRAND_HEGEMON_ID || kept.includes(c.id),
