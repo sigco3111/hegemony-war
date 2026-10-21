@@ -5,7 +5,7 @@ import type {
 } from "@openfront/engine-api/game/GameTypes";
 import {
   CHALLENGES,
-  challengesSatisfiedByWin,
+  challengesSatisfied,
   GRAND_HEGEMON_ID,
 } from "./Challenges";
 
@@ -33,6 +33,12 @@ export interface SoloGameRecord {
   // Cheat options (infinite gold/troops, instant build) were on: the game
   // still goes into the history, but a win earns no medal and no challenge.
   cheats?: boolean;
+  // Scenario facts (시나리오형 챌린지 판정용). Optional — games recorded
+  // before these fields existed simply don't satisfy scenario rules that
+  // need them.
+  bots?: number;
+  maxTimerValue?: number | null;
+  disabledUnits?: string[];
 }
 
 interface LocalRecordsData {
@@ -93,10 +99,7 @@ export function recordSoloGameEnd(record: SoloGameRecord): string[] {
     const won = (data.wins[record.map] ??= []);
     if (!won.includes(record.difficulty)) won.push(record.difficulty);
     data.challenges ??= [];
-    for (const id of challengesSatisfiedByWin(
-      record.map,
-      record.difficulty,
-    )) {
+    for (const id of challengesSatisfied(record)) {
       if (!data.challenges.includes(id)) {
         data.challenges.push(id);
         newlyCleared.push(id);

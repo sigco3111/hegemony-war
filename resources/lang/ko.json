@@ -2493,6 +2493,24 @@
     "grand_hegemon": {
       "title": "패권의 시간",
       "desc": "다른 모든 챌린지 달성"
+    },
+    "challenge_btn": "도전",
+    "scenario_tag": "시나리오",
+    "blitz": {
+      "title": "속전속결",
+      "desc": "세계 맵에서 10분 안에 승리 (보통 이상)"
+    },
+    "hold_the_line": {
+      "title": "최후의 방어선",
+      "desc": "포위 맵에서 종료 타이머를 켜고 승리 (어려움 이상)"
+    },
+    "pacifist": {
+      "title": "비핵 시대",
+      "desc": "핵무기 3종 금지 설정으로 승리 (보통 이상)"
+    },
+    "outnumbered": {
+      "title": "압도적 열세",
+      "desc": "봇 300 이상 상대로 승리 (어려움 이상)"
     }
   }
 }

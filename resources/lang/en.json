@@ -2837,6 +2837,24 @@
     "grand_hegemon": {
       "title": "Age of Hegemony",
       "desc": "Clear every other challenge"
+    },
+    "challenge_btn": "Play",
+    "scenario_tag": "Scenario",
+    "blitz": {
+      "title": "Blitz",
+      "desc": "Win on the World map within 10 minutes (Medium or higher)"
+    },
+    "hold_the_line": {
+      "title": "Hold the Line",
+      "desc": "Win on the Surrounded map with the end timer on (Hard or higher)"
+    },
+    "pacifist": {
+      "title": "No Nukes",
+      "desc": "Win with all three nuke types banned (Medium or higher)"
+    },
+    "outnumbered": {
+      "title": "Outnumbered",
+      "desc": "Win against 300+ bots (Hard or higher)"
     }
   }
 }

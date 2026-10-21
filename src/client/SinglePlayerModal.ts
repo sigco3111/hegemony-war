@@ -44,7 +44,7 @@ import {
   toOptionalNumber,
 } from "./utilities/GameConfigHelpers";
 
-import { CHALLENGES } from "./Challenges";
+import { CHALLENGES, type Challenge } from "./Challenges";
 import {
   clearedChallenges,
   formatRecordDuration,
@@ -408,6 +408,26 @@ export class SinglePlayerModal extends BaseModal {
     </div>`;
   }
 
+  // Hegemony: a scenario challenge's 도전 button loads its preset into the
+  // modal and returns to the settings view, so 게임 시작 launches the
+  // scenario board as designed.
+  private applyChallengePreset(c: Challenge): void {
+    const p = c.preset;
+    if (!p) return;
+    if (p.map !== undefined) {
+      this.selectedMap = p.map;
+      this.useRandomMap = false;
+    }
+    if (p.difficulty !== undefined) this.selectedDifficulty = p.difficulty;
+    if (p.bots !== undefined) this.bots = p.bots;
+    if (p.maxTimer !== undefined) this.maxTimer = p.maxTimer;
+    if (p.maxTimerValue !== undefined) this.maxTimerValue = p.maxTimerValue;
+    if (p.disabledUnits !== undefined) {
+      this.disabledUnits = [...p.disabledUnits];
+    }
+    this.showRecords = false;
+  }
+
   // Hegemony: the 챌린지 list — fixed goal/reward scenarios on existing
   // maps, cleared by solo wins (no cheats), stored in LocalRecords.
   private renderChallengesSection(): TemplateResult {
@@ -434,12 +454,25 @@ export class SinglePlayerModal extends BaseModal {
                     class="text-sm font-bold truncate ${done
                       ? "text-amber-200"
                       : "text-white"}"
-                    >${translateText(`challenges.${c.id}.title`)}</span
+                    >${c.scenario
+                      ? html`<span
+                          class="mr-1 rounded px-1 py-0.5 text-[10px] font-bold uppercase tracking-wider text-sky-300 border border-sky-500/40 bg-sky-500/10"
+                          >${translateText("challenges.scenario_tag")}</span
+                        >`
+                      : ""}${translateText(`challenges.${c.id}.title`)}</span
                   >
                   <span class="text-xs text-white/40 truncate"
                     >${translateText(`challenges.${c.id}.desc`)}</span
                   >
                 </div>
+                ${c.preset
+                  ? html`<button
+                      class="shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-sky-500/20 border border-sky-500/40 text-sky-300 hover:bg-sky-500/30 transition-all"
+                      @click=${() => this.applyChallengePreset(c)}
+                    >
+                      ${translateText("challenges.challenge_btn")}
+                    </button>`
+                  : ""}
                 <span
                   class="text-xs font-bold uppercase tracking-wider shrink-0 ${done
                     ? "text-amber-300"

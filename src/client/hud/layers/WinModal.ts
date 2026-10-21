@@ -991,6 +991,9 @@ export class WinModal extends LitElement implements Controller {
       ticks: this.game.ticks(),
       cheats:
         config.infiniteGold || config.infiniteTroops || config.instantBuild,
+      bots: config.bots,
+      maxTimerValue: config.maxTimerValue ?? null,
+      disabledUnits: config.disabledUnits ?? [],
     });
   }
 
