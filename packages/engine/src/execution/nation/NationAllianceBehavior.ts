@@ -139,6 +139,19 @@ export class NationAllianceBehavior {
     if (this.isRunawayLeader(otherPlayer)) {
       return false;
     }
+    // Common-threat containment: when a runaway leader dominates the map and
+    // clearly out-guns both of us, band together even if we are not similarly
+    // strong. This is what lets the map rally against a hegemon instead of
+    // feeding it.
+    if (this.isContainmentPartner(otherPlayer)) {
+      if (this.random.chance(6)) {
+        this.emojiBehavior.sendEmoji(
+          otherPlayer,
+          isResponse ? EMOJI_LOVE : EMOJI_SCARED_OF_THREAT,
+        );
+      }
+      return true;
+    }
     // Before caring about the relation, first check if the otherPlayer is a threat
     // Easy (dumb) nations are blinded by hatred, they don't care about threats, they care about the relation
     // Impossible (smart) nations on the other hand are analyzing the facts
@@ -406,6 +419,61 @@ export class NationAllianceBehavior {
     return hasComparableTroops || hasComparableTiles;
   }
 
+  // A runaway leader that is not us. Easy nations never see one
+  // (findRunawayLeader returns null on Easy), which fits: dumb nations do
+  // not organize containment.
+  private commonThreat(): Player | null {
+    const leader = findRunawayLeader(this.game);
+    if (leader === null || leader === this.player) return null;
+    return leader;
+  }
+
+  // Both players clearly out-gunned by the runaway leader: unite or fall.
+  private isContainmentPartner(otherPlayer: Player): boolean {
+    const threat = this.commonThreat();
+    if (threat === null || threat === otherPlayer) return false;
+    return (
+      threat.troops() > this.player.troops() * 2 &&
+      threat.troops() > otherPlayer.troops() * 2
+    );
+  }
+
+  // Runs every attack tick (see NationExecution): while a runaway leader
+  // dominates, rally a coalition against them - including players we do not
+  // border - and abandon any alliance with the leader themselves. Breaking
+  // that alliance is what frees everyone to attack the hegemon.
+  maybeContainmentDiplomacy() {
+    if (this.game.config().disableAlliances()) return;
+    const { difficulty } = this.game.config().gameConfig();
+    if (difficulty === Difficulty.Easy) return; // dumb nations don't organize
+    const threat = this.commonThreat();
+    if (threat === null) return;
+
+    // Containment betrayal: an ally that runs away with the map becomes the
+    // target, not a friend.
+    if (threat.troops() > this.player.troops() * 2) {
+      const alliance = this.player.allianceWith(threat);
+      if (alliance) {
+        this.betray(threat);
+        return;
+      }
+    }
+
+    // Coalition outreach: propose alliances to other threatened players,
+    // even beyond our borders. Only when clearly out-gunned ourselves.
+    if (threat.troops() <= this.player.troops() * 2) return;
+    if (!this.random.chance(20)) return;
+    for (const other of this.game.players()) {
+      if (other === this.player || other === threat) continue;
+      if (other.type() === PlayerType.Bot || !other.isAlive()) continue;
+      if (!this.isContainmentPartner(other)) continue;
+      if (!this.player.canSendAllianceRequest(other)) continue;
+      this.game.addExecution(
+        new AllianceRequestExecution(this.player, other.id()),
+      );
+    }
+  }
+
   // juiciestAlly comes from findJuiciestAlly(borderingFriends) - callers looping
   // over borderingFriends should compute it once, not on every call
   maybeBetray(
@@ -449,6 +517,21 @@ export class NationAllianceBehavior {
       difficulty !== Difficulty.Easy &&
       otherPlayer.isTraitor() &&
       otherPlayer.troops() < this.player.troops() * 1.2
+    ) {
+      this.betray(otherPlayer);
+      return true;
+    }
+
+    // Opportunistic betrayal: an ally being dogpiled by others is a meal,
+    // not a friend. Joining the pile is often what flips the war.
+    if (
+      (difficulty === Difficulty.Hard ||
+        difficulty === Difficulty.Impossible) &&
+      otherPlayer
+        .incomingAttacks()
+        .reduce((sum, attack) => sum + attack.troops(), 0) >
+        otherPlayer.troops() &&
+      this.player.troops() > otherPlayer.troops()
     ) {
       this.betray(otherPlayer);
       return true;

@@ -43,8 +43,26 @@ export interface ChallengeRecordInfo {
   difficulty: Difficulty;
   ticks: number;
   bots?: number;
+  nations?: number;
   maxTimerValue?: number | null;
   disabledUnits?: string[];
+}
+
+// Starting opposition (bots + AI nations). Scenario rules require real
+// opponents so a hollowed-out config (0 bots / 1-minute timer) cannot clear
+// them - changing the preset's pinned settings turns it into a normal game.
+function opposition(r: ChallengeRecordInfo): number {
+  return (r.bots ?? 0) + (r.nations ?? 0);
+}
+
+// Timer games must run at least this long to count: a 1-minute timer is a
+// wiring trick, not a scenario.
+const MIN_SCENARIO_TIMER_MINUTES = 5;
+
+function noShortTimer(r: ChallengeRecordInfo): boolean {
+  return (
+    r.maxTimerValue == null || r.maxTimerValue >= MIN_SCENARIO_TIMER_MINUTES
+  );
 }
 
 // One-tap scenario setup, applied to the solo modal by the 도전 button.
@@ -106,11 +124,14 @@ export const CHALLENGES: Challenge[] = [
   {
     id: "blitz",
     scenario: true,
-    // 10 minutes at 100ms/tick = 6000 ticks.
+    // 10 minutes at 100ms/tick = 6000 ticks. A real conquest: no timer win
+    // and genuine opposition (the preset starts 400 bots).
     check: (r) =>
       r.map === GameMapType.World &&
       difficultyAtLeast(r.difficulty, Difficulty.Medium) &&
-      r.ticks <= 6000,
+      r.ticks <= 6000 &&
+      r.maxTimerValue == null &&
+      opposition(r) >= 200,
     preset: {
       map: GameMapType.World,
       difficulty: Difficulty.Medium,
@@ -123,7 +144,9 @@ export const CHALLENGES: Challenge[] = [
     check: (r) =>
       r.map === GameMapType.Surrounded &&
       difficultyAtLeast(r.difficulty, Difficulty.Hard) &&
-      r.maxTimerValue != null,
+      r.maxTimerValue != null &&
+      r.maxTimerValue >= MIN_SCENARIO_TIMER_MINUTES &&
+      opposition(r) >= 200,
     preset: {
       map: GameMapType.Surrounded,
       difficulty: Difficulty.Hard,
@@ -137,7 +160,9 @@ export const CHALLENGES: Challenge[] = [
     scenario: true,
     check: (r) =>
       difficultyAtLeast(r.difficulty, Difficulty.Medium) &&
-      NUKE_UNITS.every((u) => r.disabledUnits?.includes(u) ?? false),
+      NUKE_UNITS.every((u) => r.disabledUnits?.includes(u) ?? false) &&
+      noShortTimer(r) &&
+      opposition(r) >= 100,
     preset: {
       difficulty: Difficulty.Medium,
       disabledUnits: [...NUKE_UNITS],
@@ -147,7 +172,9 @@ export const CHALLENGES: Challenge[] = [
     id: "outnumbered",
     scenario: true,
     check: (r) =>
-      difficultyAtLeast(r.difficulty, Difficulty.Hard) && (r.bots ?? 0) >= 300,
+      difficultyAtLeast(r.difficulty, Difficulty.Hard) &&
+      (r.bots ?? 0) >= 300 &&
+      noShortTimer(r),
     preset: {
       difficulty: Difficulty.Hard,
       bots: 300,

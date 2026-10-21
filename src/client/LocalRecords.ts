@@ -37,6 +37,7 @@ export interface SoloGameRecord {
   // before these fields existed simply don't satisfy scenario rules that
   // need them.
   bots?: number;
+  nations?: number;
   maxTimerValue?: number | null;
   disabledUnits?: string[];
 }
