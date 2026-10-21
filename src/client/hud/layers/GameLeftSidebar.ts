@@ -15,6 +15,10 @@ import { getTranslatedPlayerTeamLabel, translateText } from "../../Utils";
 import type { GameView } from "../../view";
 import { ImmunityBarVisibleEvent } from "./ImmunityTimer";
 import { ToggleDelegationPanelEvent } from "./DelegationPanel";
+import {
+  ToggleWarPlanPanelEvent,
+  WarPlanChangedEvent,
+} from "../../WarPlan";
 import { ToggleDiplomacyBoardEvent } from "./DiplomacyBoard";
 import { ToggleWarDashboardEvent } from "./WarDashboard";
 import "./PlayerStats";
@@ -45,6 +49,10 @@ export class GameLeftSidebar extends LitElement implements Controller {
   private spawnBarVisible = false;
   @state()
   private immunityBarVisible = false;
+  @state()
+  private planQueuedCount = 0;
+  @state()
+  private planExecuting = false;
 
   private playerColor: Colord = new Colord("#FFFFFF");
   @property({ attribute: false }) public game: GameView | null = null;
@@ -64,6 +72,13 @@ export class GameLeftSidebar extends LitElement implements Controller {
     });
     this.eventBus?.on(ImmunityBarVisibleEvent, (e) => {
       this.immunityBarVisible = e.visible;
+    });
+    // 개선 7: badge on the 작전 button mirrors the plan queue.
+    this.planQueuedCount = 0;
+    this.planExecuting = false;
+    this.eventBus?.on(WarPlanChangedEvent, (e) => {
+      this.planQueuedCount = e.queuedCount;
+      this.planExecuting = e.executing;
     });
     if (this.isTeamGame) {
       this.isPlayerTeamLabelVisible = true;
@@ -123,12 +138,14 @@ export class GameLeftSidebar extends LitElement implements Controller {
     // The solo overlays stack in the same spot: never show two at once.
     this.eventBus?.emit(new ToggleDiplomacyBoardEvent(false));
     this.eventBus?.emit(new ToggleDelegationPanelEvent(false));
+    this.eventBus?.emit(new ToggleWarPlanPanelEvent(false));
     this.eventBus?.emit(new ToggleWarDashboardEvent());
   }
 
   private toggleDiplomacyBoard(): void {
     this.eventBus?.emit(new ToggleWarDashboardEvent(false));
     this.eventBus?.emit(new ToggleDelegationPanelEvent(false));
+    this.eventBus?.emit(new ToggleWarPlanPanelEvent(false));
     this.eventBus?.emit(new ToggleDiplomacyBoardEvent());
   }
 
@@ -136,7 +153,16 @@ export class GameLeftSidebar extends LitElement implements Controller {
   private toggleDelegationPanel(): void {
     this.eventBus?.emit(new ToggleWarDashboardEvent(false));
     this.eventBus?.emit(new ToggleDiplomacyBoardEvent(false));
+    this.eventBus?.emit(new ToggleWarPlanPanelEvent(false));
     this.eventBus?.emit(new ToggleDelegationPanelEvent());
+  }
+
+  // Hegemony 개선7: the pause operation plan (작전) panel.
+  private toggleWarPlanPanel(): void {
+    this.eventBus?.emit(new ToggleWarDashboardEvent(false));
+    this.eventBus?.emit(new ToggleDiplomacyBoardEvent(false));
+    this.eventBus?.emit(new ToggleDelegationPanelEvent(false));
+    this.eventBus?.emit(new ToggleWarPlanPanelEvent());
   }
 
   private get isTeamGame(): boolean {
@@ -285,6 +311,56 @@ export class GameLeftSidebar extends LitElement implements Controller {
                       fill="none"
                     />
                   </svg>
+                </div>
+                <div
+                  class="relative cursor-pointer p-0.5 bg-gray-700/50 hover:bg-gray-600 border rounded-md border-slate-500 transition-colors"
+                  @click=${this.toggleWarPlanPanel}
+                  role="button"
+                  tabindex="0"
+                  title=${translateText("war_plan.sidebar_title")}
+                  @keydown=${(e: KeyboardEvent) => {
+                    if (
+                      e.key === "Enter" ||
+                      e.key === " " ||
+                      e.code === "Space"
+                    ) {
+                      e.preventDefault();
+                      this.toggleWarPlanPanel();
+                    }
+                  }}
+                >
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <circle
+                      cx="10"
+                      cy="10"
+                      r="6.2"
+                      stroke="#fff"
+                      stroke-width="1.6"
+                      fill="none"
+                    />
+                    <circle cx="10" cy="10" r="1.6" fill="#fff" />
+                    <path
+                      d="M10 1.2v3M10 15.8v3M1.2 10h3M15.8 10h3"
+                      stroke="#fff"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                  ${this.planQueuedCount > 0
+                    ? html`<span
+                        class="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-0.5 rounded-full ${this.planExecuting
+                          ? "bg-emerald-500"
+                          : "bg-sky-600"} text-white text-[10px] font-bold leading-4 text-center tabular-nums"
+                      >
+                        ${this.planQueuedCount}
+                      </span>`
+                    : null}
                 </div>
               `
             : null}

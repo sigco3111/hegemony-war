@@ -1,4 +1,5 @@
 import { TileRef } from "@openfront/engine-api/game/GameMap";
+import { GameType } from "@openfront/engine-api/game/GameTypes";
 import { EventBus } from "@openfront/shared/EventBus";
 import {
   SendAllianceExtensionIntentEvent,
@@ -16,14 +17,42 @@ import {
 } from "../../Transport";
 import { UIState } from "../../UIState";
 import { PlayerView } from "../../view";
+import { GameView } from "../../view";
+import { clampPlanRatio, QueuePlanOrderEvent } from "../../WarPlan";
 
 export class PlayerActionHandler {
   constructor(
     private eventBus: EventBus,
     private uiState: UIState,
+    private game?: GameView,
   ) {}
 
+  /**
+   * 개선 7: while a solo game is paused the LocalServer drops every intent,
+   * so manual attack clicks become plan orders instead of disappearing.
+   */
+  private shouldQueuePlan(): boolean {
+    if (!this.game) return false;
+    if (!this.uiState.paused) return false;
+    if (this.game.config().gameConfig().gameType !== GameType.Singleplayer) {
+      return false;
+    }
+    if (this.game.config().isReplay()) return false;
+    if (this.game.inSpawnPhase()) return false;
+    return true;
+  }
+
+  private planRatioPercent(): number {
+    return clampPlanRatio(this.uiState.attackRatio * 100);
+  }
+
   handleAttack(player: PlayerView, targetId: string | null) {
+    if (this.shouldQueuePlan()) {
+      this.eventBus.emit(
+        new QueuePlanOrderEvent("attack", targetId, null, this.planRatioPercent()),
+      );
+      return;
+    }
     this.eventBus.emit(
       new SendAttackIntentEvent(
         targetId,
@@ -33,6 +62,12 @@ export class PlayerActionHandler {
   }
 
   handleBoatAttack(player: PlayerView, targetTile: TileRef) {
+    if (this.shouldQueuePlan()) {
+      this.eventBus.emit(
+        new QueuePlanOrderEvent("boat", null, targetTile, this.planRatioPercent()),
+      );
+      return;
+    }
     this.eventBus.emit(
       new SendBoatAttackIntentEvent(
         targetTile,

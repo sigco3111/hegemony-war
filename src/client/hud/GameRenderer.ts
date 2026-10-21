@@ -47,7 +47,9 @@ import { SettingsModal } from "./layers/SettingsModal";
 import { SpawnTimer } from "./layers/SpawnTimer";
 import { TutorialPanel } from "./layers/TutorialPanel";
 import { UnitDisplay } from "./layers/UnitDisplay";
+import { PauseGameIntentEvent } from "../Transport";
 import { DelegationPanel } from "./layers/DelegationPanel";
+import { WarPlanPanel } from "./layers/WarPlanPanel";
 import { DiplomacyBoard } from "./layers/DiplomacyBoard";
 import { WarDashboard } from "./layers/WarDashboard";
 import { WinModal } from "./layers/WinModal";
@@ -66,10 +68,18 @@ export function createRenderer(
 
   const uiState: UIState = {
     attackRatio: 20,
+    paused: false,
     ghostStructure: null,
     rocketDirectionUp: true,
     upgradeMultiplier: 1,
   };
+
+  // Single source of truth for "is the sim paused" that every HUD layer can
+  // read synchronously (개선 7 queues attack clicks while it is true). Both
+  // pause paths (pause button/keybind, settings auto-pause) emit this event.
+  eventBus.on(PauseGameIntentEvent, (e) => {
+    uiState.paused = e.paused;
+  });
 
   //hide when the game renders
   const startingModal = document.querySelector(
@@ -217,6 +227,14 @@ export function createRenderer(
   }
   delegationPanel.game = game;
   delegationPanel.eventBus = eventBus;
+
+  const warPlanPanel = document.querySelector("war-plan-panel") as WarPlanPanel;
+  if (!(warPlanPanel instanceof WarPlanPanel)) {
+    console.error("war plan panel not found");
+  }
+  warPlanPanel.game = game;
+  warPlanPanel.eventBus = eventBus;
+  warPlanPanel.uiState = uiState;
 
   const settingsModal = document.querySelector(
     "settings-modal",
@@ -388,6 +406,7 @@ export function createRenderer(
     warDashboard,
     diplomacyBoard,
     delegationPanel,
+    warPlanPanel,
     gameRightSidebar,
     controlPanel,
     playerInfo,

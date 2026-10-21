@@ -13,6 +13,7 @@ import { gamePortal } from "../../GamePortal";
 import { showInGameAlert, showInGameConfirm } from "../../InGameModal";
 import { TogglePauseIntentEvent } from "../../InputHandler";
 import { PauseGameIntentEvent, SendWinnerEvent } from "../../Transport";
+import { ToggleWarPlanPanelEvent } from "../../WarPlan";
 import { homeHref, showToast, translateText } from "../../Utils";
 import { GameView } from "../../view";
 import { ImmunityBarVisibleEvent } from "./ImmunityTimer";
@@ -231,6 +232,12 @@ export class GameRightSidebar extends LitElement implements Controller {
 
   private onPauseButtonClick() {
     this.isPaused = !this.isPaused;
+    // 개선 7: an explicit pause opens the operation plan (solo only); the
+    // settings auto-pause does not reach this handler, so the panel never
+    // pops over the settings modal.
+    if (this._isSinglePlayer && !this.game.config().isReplay()) {
+      this.eventBus.emit(new ToggleWarPlanPanelEvent(this.isPaused));
+    }
     if (this.isPaused) {
       gamePortal.gameplayStop();
     } else {
