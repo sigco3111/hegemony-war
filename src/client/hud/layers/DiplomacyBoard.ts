@@ -340,17 +340,37 @@ export class DiplomacyBoard extends LitElement implements Controller {
     `;
   }
 
+  // Row order is recomputed only when the alive-nation membership changes,
+  // never on the 200ms data tick: a list that re-sorts under the cursor makes
+  // the offer/break buttons unclickable mid-game. Land-% still updates live.
+  private nationOrder: string[] = [];
+
+  private orderedNations(me: PlayerView): PlayerView[] {
+    const alive = this.game
+      .playerViews()
+      .filter(
+        (p) => p.isAlive() && p.id() !== me.id() && p.type() !== PlayerType.Bot,
+      );
+    const byId = new Map(alive.map((p) => [p.id() as string, p]));
+    const sameMembership =
+      byId.size === this.nationOrder.length &&
+      this.nationOrder.every((id) => byId.has(id));
+    if (!sameMembership) {
+      this.nationOrder = alive
+        .sort((a, b) => b.numTilesOwned() - a.numTilesOwned())
+        .map((p) => p.id() as string);
+    }
+    return this.nationOrder
+      .map((id) => byId.get(id))
+      .filter((p): p is PlayerView => p !== undefined);
+  }
+
   render() {
     if (!this.show || !this.isSolo()) return nothing;
     const me = this.game.myPlayer();
     if (me === null || me === undefined || !me.isAlive()) return nothing;
 
-    const nations = this.game
-      .playerViews()
-      .filter(
-        (p) => p.isAlive() && p.id() !== me.id() && p.type() !== PlayerType.Bot,
-      )
-      .sort((a, b) => b.numTilesOwned() - a.numTilesOwned());
+    const nations = this.orderedNations(me);
 
     return html`
       <div
