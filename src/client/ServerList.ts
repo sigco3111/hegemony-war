@@ -438,6 +438,8 @@ function fetchOnce(): Promise<ServerList | null> {
  * rather than to a live server.
  */
 export function startServerListPolling(): void {
+  // Hegemony: no fleet, no heartbeat on the solo static build.
+  if (ClientEnv.soloStatic()) return;
   if (polling) return;
   try {
     if (safeSite() === undefined) return;
