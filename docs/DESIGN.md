@@ -68,6 +68,7 @@ OpenFrontIO를 싱글플레이 중심으로 개선한 포크입니다. 서버 �
 - 견제 연합 수락: 도주 선두의 병력이 자신의 2배를 넘으면, 평소라면 거절할 약체의 동맹 요청도 연합 파트너로 수락합니다.
 - 초국경 연합 요청: 명백한 열세(선두 병력의 절반 미만)일 때 국경을 공유하지 않는 위협받는 국가에게도 동맹을 제안합니다 (공격 틱마다 1/20 확률 게이트).
 - 패자 동맹 해소: 도주 선두와 맺은 동맹은 자산이 아니라 위협이 되므로 스스로 파기합니다.
+- 기회주의 배신: 동맹이 다른 세력에게 다굴당하는 중(들어오는 공격 병력이 동맹의 보유 병력 초과)이고 자신이 더 강하면 배신에 합류합니다 (어려움·불지옥 한정). 원작의 배신 규칙(최대 이득 동맹 배신, 유일 인접 약체 배신)과 별개 분기입니다.
 - 동맹 끄기 설정에서는 전부 발동하지 않습니다.
 - 구현: `packages/engine/src/execution/nation/NationAllianceBehavior.ts`의 `maybeContainmentDiplomacy` 등. `NationExecution`이 매 공격 틱에 호출하며, 동맹 체결·파기는 전황 대시보드 연대기에 기록됩니다.
 
@@ -87,7 +88,7 @@ OpenFrontIO를 싱글플레이 중심으로 개선한 포크입니다. 서버 �
 
 ## 검증 현황과 한계
 
-- 단위 테스트: 기록 검증, 챌린지 게이트, 견제 외교 등 25건 (`tests/RecordsRevalidate.test.ts`, `tests/ChallengesGate.test.ts`, `tests/NationContainment.test.ts`).
+- 단위 테스트: 기록 검증, 챌린지 게이트, 견제·기회주의 외교 등 31건 (`tests/RecordsRevalidate.test.ts`, `tests/ChallengesGate.test.ts`, `tests/NationContainment.test.ts`, `tests/NationOpportunisticBetrayal.test.ts`).
 - 통제 통합 테스트: `tests/NationContainmentIntegration.test.ts`가 배포와 같은 엔진 배선(`NationExecution` → `executeNextTick`)으로 도주 선두 트리거를 결정적으로 재현합니다. 견제 연합 성립, 패자 동맹 파기, 연대기가 소비하는 업데이트(AllianceRequestReply·BrokeAlliance) 방출을 확인합니다.
 - 관찰 한계: 실제 플레이에서 견제 외교가 유기적으로 발동하는 장면은 아직 관찰되지 않았습니다 (초반 구간만 관찰). 통제 테스트 증거와 자연 플레이 관찰은 구분해서 평가해야 합니다.
 - 알려진 잔여 리스크: 기록 재검증이 백업 없이 삭제하던 이전 배포에 노출된 기기에서 기록 로테이션(200건 초과)까지 진행된 경우, 그때 삭제된 업적은 복구할 수 없습니다.
