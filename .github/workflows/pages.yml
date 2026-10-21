@@ -1,75 +1,34 @@
-name: apply-and-deploy
+name: apply-payload
 
 on:
   push:
     branches: [main]
+    paths:
+      - '*.zip'
   workflow_dispatch:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
   apply:
     runs-on: ubuntu-latest
-    outputs:
-      applied: ${{ steps.check.outputs.applied }}
     steps:
       - uses: actions/checkout@v4
-      - id: check
+      - name: apply newest payload
         run: |
-          PAYLOAD=$(ls *payload.zip 2>/dev/null | sort -V | tail -1)
-          if [ -n "$PAYLOAD" ]; then
-            echo "applied=true" >> "$GITHUB_OUTPUT"
-            mkdir -p /tmp/payload
-            unzip -o "$PAYLOAD" -d /tmp/payload
-            bash /tmp/payload/apply.sh
-            rm -f "$PAYLOAD"
-          else
-            echo "applied=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: commit and push
-        if: steps.check.outputs.applied == 'true'
+          set -e
+          zip=$(ls *payload.zip 2>/dev/null | sort -V | tail -1)
+          if [ -z "$zip" ]; then echo "no payload found"; exit 0; fi
+          rm -rf /tmp/payload && mkdir -p /tmp/payload
+          unzip -o "$zip" -d /tmp/payload
+          bash /tmp/payload/apply.sh
+          rm -f "$zip"
+      - name: commit changes
         run: |
-          git config user.name sigco3111
-          git config user.email sigco3111@users.noreply.github.com
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "chore: apply staged payload" || echo "nothing to commit"
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "chore: apply staged payload"
           git push
-
-  build:
-    needs: apply
-    if: needs.apply.outputs.applied != 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - run: npm ci --engine-strict=false
-      - name: build static solo client
-        run: npx vite build --mode static
-        env:
-          PAGES_BASE: /hegemony-war/
-          CDN_BASE: /hegemony-war
-          GAME_ENV: prod
-          DOMAIN: sigco3111.github.io
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: static
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
