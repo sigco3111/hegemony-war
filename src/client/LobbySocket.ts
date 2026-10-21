@@ -368,12 +368,6 @@ export class PublicLobbySocket {
       this.wsConnectionAttempts++;
     }
     if (this.wsConnectionAttempts >= this.maxWsAttempts && this.giveUp()) {
-      try {
-        localStorage.setItem(
-          "hegemony.debug.alert",
-          String(new Error("conn-alert").stack),
-        );
-      } catch {}
       void showInGameAlert(translateText("error_modal.connection_error"));
     }
     this.scheduleReconnect(rediscover);
