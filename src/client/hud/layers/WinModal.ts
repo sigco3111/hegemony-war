@@ -4,7 +4,7 @@ import type { AllPlayersStats, Winner } from "@openfront/engine-api/Schemas";
 import type { GameXpEligible, Progress } from "@openfront/shared/ApiSchemas";
 import { Pattern } from "@openfront/shared/CosmeticSchemas";
 import { EventBus } from "@openfront/shared/EventBus";
-import { html, LitElement, TemplateResult } from "lit";
+import { html, LitElement, nothing, TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import {
   DESKTOP_TUTORIAL_VIDEO_URL,
@@ -435,6 +435,9 @@ export class WinModal extends LitElement implements Controller {
   }
 
   innerHtml() {
+    // Hegemony: the solo static build has no store, video, or community
+    // promos — skip them at the source so the iframe/request is never made.
+    if (ClientEnv.soloStatic()) return nothing;
     // The Steam desktop build has nothing to wishlist — fall through to the
     // other promos so the box is never empty.
     const canWishlist = !steamSDK.isOnSteam();
