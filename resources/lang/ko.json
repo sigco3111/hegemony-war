@@ -2444,5 +2444,21 @@
     "empty": "아직 완료한 게임이 없습니다",
     "win": "승리",
     "loss": "패배"
+  },
+  "war_dashboard": {
+    "title": "전황",
+    "shares": "영토 점유율",
+    "trend": "점유율 추이",
+    "chronicle": "전쟁 연대기",
+    "chronicle_empty": "아직 기록된 전투가 없습니다",
+    "waiting": "게임이 시작되면 표시됩니다",
+    "others": "기타",
+    "you": "나",
+    "k_attack": "공격",
+    "k_conquest": "정복",
+    "k_alliance": "동맹 체결",
+    "k_broken": "동맹 파기",
+    "k_expired": "동맹 만료",
+    "k_embargo": "교역 중단"
   }
 }

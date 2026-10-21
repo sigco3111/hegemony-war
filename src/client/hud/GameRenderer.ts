@@ -47,6 +47,7 @@ import { SettingsModal } from "./layers/SettingsModal";
 import { SpawnTimer } from "./layers/SpawnTimer";
 import { TutorialPanel } from "./layers/TutorialPanel";
 import { UnitDisplay } from "./layers/UnitDisplay";
+import { WarDashboard } from "./layers/WarDashboard";
 import { WinModal } from "./layers/WinModal";
 import { loadAllSprites } from "./SpriteLoader";
 
@@ -187,6 +188,15 @@ export function createRenderer(
   }
   gameRightSidebar.game = game;
   gameRightSidebar.eventBus = eventBus;
+
+  const warDashboard = document.querySelector(
+    "war-dashboard",
+  ) as WarDashboard;
+  if (!(warDashboard instanceof WarDashboard)) {
+    console.error("war dashboard not found");
+  }
+  warDashboard.game = game;
+  warDashboard.eventBus = eventBus;
 
   const settingsModal = document.querySelector(
     "settings-modal",
@@ -355,6 +365,7 @@ export function createRenderer(
     immunityTimer,
     gameLeftSidebar,
     unitDisplay,
+    warDashboard,
     gameRightSidebar,
     controlPanel,
     playerInfo,

@@ -1,4 +1,8 @@
-import { GameMode, type Team } from "@openfront/engine-api/game/GameTypes";
+import {
+  GameMode,
+  GameType,
+  type Team,
+} from "@openfront/engine-api/game/GameTypes";
 import { assetUrl } from "@openfront/shared/AssetUrls";
 import type { EventBus } from "@openfront/shared/EventBus";
 import { Colord } from "colord";
@@ -10,6 +14,7 @@ import { themeProvider } from "../../theme/ThemeProvider";
 import { getTranslatedPlayerTeamLabel, translateText } from "../../Utils";
 import type { GameView } from "../../view";
 import { ImmunityBarVisibleEvent } from "./ImmunityTimer";
+import { ToggleWarDashboardEvent } from "./WarDashboard";
 import "./PlayerStats";
 import type { PlayerStats } from "./PlayerStats";
 import { SpawnBarVisibleEvent } from "./SpawnTimer";
@@ -105,6 +110,17 @@ export class GameLeftSidebar extends LitElement implements Controller {
     this.isTeamStatsShown = !this.isTeamStatsShown;
   }
 
+  // Hegemony: the war dashboard (전황) is a singleplayer-only panel.
+  private get isSoloGame(): boolean {
+    return (
+      this.game?.config().gameConfig().gameType === GameType.Singleplayer
+    );
+  }
+
+  private toggleWarDashboard(): void {
+    this.eventBus?.emit(new ToggleWarDashboardEvent());
+  }
+
   private get isTeamGame(): boolean {
     return this.game?.config().gameConfig().gameMode === GameMode.Team;
   }
@@ -140,6 +156,39 @@ export class GameLeftSidebar extends LitElement implements Controller {
               height="20"
             />
           </div>
+          ${this.isSoloGame
+            ? html`
+                <div
+                  class="cursor-pointer p-0.5 bg-gray-700/50 hover:bg-gray-600 border rounded-md border-slate-500 transition-colors"
+                  @click=${this.toggleWarDashboard}
+                  role="button"
+                  tabindex="0"
+                  title=${translateText("war_dashboard.title")}
+                  @keydown=${(e: KeyboardEvent) => {
+                    if (
+                      e.key === "Enter" ||
+                      e.key === " " ||
+                      e.code === "Space"
+                    ) {
+                      e.preventDefault();
+                      this.toggleWarDashboard();
+                    }
+                  }}
+                >
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <rect x="2" y="10" width="4" height="8" rx="1" fill="#fff" />
+                    <rect x="8" y="6" width="4" height="12" rx="1" fill="#fff" />
+                    <rect x="14" y="2" width="4" height="16" rx="1" fill="#fff" />
+                  </svg>
+                </div>
+              `
+            : null}
           ${this.isTeamGame
             ? html`
                 <div

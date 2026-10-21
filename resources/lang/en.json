@@ -2788,5 +2788,21 @@
     "empty": "No finished games yet",
     "win": "Win",
     "loss": "Loss"
+  },
+  "war_dashboard": {
+    "title": "War Room",
+    "shares": "Territory shares",
+    "trend": "Territory over time",
+    "chronicle": "War chronicle",
+    "chronicle_empty": "No battles recorded yet",
+    "waiting": "Shown once the game starts",
+    "others": "Others",
+    "you": "you",
+    "k_attack": "attack",
+    "k_conquest": "conquest",
+    "k_alliance": "alliance formed",
+    "k_broken": "alliance broken",
+    "k_expired": "alliance expired",
+    "k_embargo": "embargo"
   }
 }

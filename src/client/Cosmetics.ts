@@ -4,6 +4,7 @@ import {
   UserSubscription,
 } from "@openfront/shared/ApiSchemas";
 import { assetUrl } from "@openfront/shared/AssetUrls";
+import { ClientEnv } from "./ClientEnv";
 import {
   ColorPalette,
   CosmeticPack,
@@ -877,6 +878,9 @@ export function cosmeticsJsonUrl(): string {
 }
 
 export async function fetchCosmetics(): Promise<Cosmetics | null> {
+  // Hegemony: cosmetics come from the store API, which the solo static
+  // build does not have. Skip the request instead of failing it.
+  if (ClientEnv.soloStatic()) return null;
   if (__cosmetics !== null) {
     return __cosmetics;
   }

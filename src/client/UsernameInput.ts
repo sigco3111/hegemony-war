@@ -5,6 +5,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { translateText } from "../client/Utils";
 import { getUserMe, invalidateUserMe } from "./Api";
 import { checkClanTagOwnership } from "./ClanApi";
+import { ClientEnv } from "./ClientEnv";
 import { verifiedBadge } from "./components/ui/VerifiedBadge";
 import { gamePortal } from "./GamePortal";
 import { showInGameAlert, showInGameConfirm } from "./InGameModal";
@@ -1015,6 +1016,11 @@ export class UsernameInput extends LitElement {
   // Name field. Verified play swaps the free-text input for a badge-led chip so
   // the state reads as "this is my account name", not "the input broke".
   private renderNameControl() {
+    // Hegemony: verified names belong to an account, and the solo static
+    // build has none — render the plain name input only.
+    if (ClientEnv.soloStatic()) {
+      return html`${this.renderNameInput()}`;
+    }
     return html`
       ${this.verifiedActive
         ? this.renderVerifiedChip()
