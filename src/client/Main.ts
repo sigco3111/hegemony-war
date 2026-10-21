@@ -550,7 +550,7 @@ class Client {
 
     const openFrontFont = new FontFace(
       "OpenFront",
-      `url(${assetUrl("fonts/OpenFront.ttf")})`,
+      `url(${assetUrl("fonts/overpass-bold.woff")})`,
     );
     document.fonts.add(openFrontFont);
     openFrontFont.load().catch(() => {});

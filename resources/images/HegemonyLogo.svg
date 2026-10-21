@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1364 259">
+  <defs>
+    <linearGradient id="hg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f5d576"/>
+      <stop offset="1" stop-color="#c9a227"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(20,14)">
+    <path d="M115 0 230 66v99l-115 66L0 165V66z" fill="#16213e" stroke="url(#hg)" stroke-width="9"/>
+    <path d="M55 140l19-54 23 33 18-60 18 60 23-33 19 54z" fill="url(#hg)"/>
+    <rect x="55" y="146" width="120" height="13" rx="6" fill="url(#hg)"/>
+  </g>
+  <text x="290" y="132" font-family="'Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',sans-serif" font-weight="800" font-size="92" fill="#f3f4f6" letter-spacing="2">패권의 시간</text>
+  <text x="294" y="196" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="34" fill="url(#hg)" letter-spacing="12">AGE OF HEGEMONY</text>
+</svg>

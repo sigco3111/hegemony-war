@@ -648,32 +648,20 @@ export class GameModeSelector extends LitElement {
   }
 
   render() {
-    const ffa = this.lobbies?.games?.["ffa"]?.[0];
-    const teams = this.lobbies?.games?.["team"]?.[0];
-    const special = this.lobbies?.games?.["special"]?.[0];
-    // The hero slot holds the spinner, then the FFA card; loaded without one
-    // it goes and the upcoming column takes the whole row.
-    const heroSlot = this.lobbies === null || ffa !== undefined;
-    // A lone secondary card takes both of the column's card rows.
-    const cardRows =
-      teams && special
-        ? { special: "sm:row-start-2", teams: "sm:row-start-3" }
-        : {
-            special: "sm:row-start-2 sm:row-span-2",
-            teams: "sm:row-start-2 sm:row-span-2",
-          };
-
-    // DOM is in phone order; sm+ places the same elements onto a grid and
-    // reading-flow keeps focus order following the rows (Chromium only).
     return html`
       <div
-        class="flex flex-col gap-4 w-full px-4 pb-4 mx-auto sm:px-0 sm:pb-0 sm:grid sm:grid-cols-[2fr_1fr] sm:grid-rows-[auto_min(24rem,40vh)_auto_auto] desktop:sm:grid-rows-[auto_40vh_auto_auto] sm:[reading-flow:grid-rows]"
+        class="flex flex-col gap-4 w-full px-4 pb-4 mx-auto sm:px-0 sm:pb-0 max-w-3xl"
       >
-        <ios-add-to-home-screen-banner
-          class="no-game-portal [&:empty]:hidden sm:col-span-2 sm:row-start-1"
-        ></ios-add-to-home-screen-banner>
+        <div class="flex flex-col gap-2 text-center mt-6 mb-2">
+          <h1 class="text-3xl sm:text-4xl font-bold text-white tracking-wide">
+            패권의 시간
+          </h1>
+          <p class="text-white/60 text-sm sm:text-base">
+            AI 국가들과 세계의 패권을 겨루는 싱글플레이 전략 게임
+          </p>
+        </div>
 
-        <div class="flex gap-4 h-14 sm:col-span-2 sm:row-start-3">
+        <div class="flex gap-4 h-16">
           <div class="flex-[2]">
             ${this.renderSmallActionCard(
               translateText("main.solo"),
@@ -691,90 +679,6 @@ export class GameModeSelector extends LitElement {
               </div>`
             : nothing}
         </div>
-        <div class="grid grid-cols-3 gap-4 h-14 sm:col-span-2 sm:row-start-4">
-          ${this.renderSmallActionCard(
-            translateText("main.create"),
-            this.openHostLobby,
-            SECONDARY_ACTION,
-            undefined,
-            true,
-          )}
-          ${this.renderSmallActionCard(
-            translateText("mode_selector.ranked_title"),
-            this.openRankedMenu,
-            SECONDARY_ACTION,
-            undefined,
-            true,
-            // Ranked admits trusted accounts only. A trusted viewer gets the
-            // green open lock; anyone else meets the red locks and the trust
-            // popup inside the ranked modal. Small, so it clears the label on
-            // narrow (mobile) buttons.
-            this.viewerTrusted
-              ? trustLockIcon(true, {
-                  tooltipTitle: translateText(
-                    "mode_selector.ranked_trust_tooltip_title",
-                  ),
-                  position: "top-1 right-1",
-                  small: true,
-                })
-              : nothing,
-          )}
-          ${this.renderSmallActionCard(
-            translateText("main.join"),
-            this.openJoinLobby,
-            SECONDARY_ACTION,
-            this.hostedLobbyCount(),
-            true,
-          )}
-        </div>
-
-        ${heroSlot
-          ? html`<div class="min-w-0 sm:col-start-1 sm:row-start-2">
-              ${ffa
-                ? this.renderLobbyCard(ffa, getGameModeLabel(ffa.gameConfig!))
-                : this.offlineForLobbies()
-                  ? this.renderLobbiesUnavailable()
-                  : html`<div
-                      class="flex items-center justify-center h-44 sm:h-full"
-                    >
-                      <span
-                        class="size-24 rounded-full border-[6px] border-blue-500/30 border-t-blue-500 animate-spin"
-                      ></span>
-                    </div>`}
-            </div>`
-          : nothing}
-
-        <!-- Always rendered: the heading is the only way into the lobby browser. -->
-        <section
-          class="flex flex-col gap-4 min-w-0 sm:grid sm:grid-rows-[auto_1fr_1fr] sm:row-start-2 sm:min-h-0 sm:[reading-flow:grid-rows] ${heroSlot
-            ? "sm:col-start-2"
-            : "sm:col-start-1 sm:col-span-2"}"
-        >
-          ${teams
-            ? html`<div class="min-w-0 sm:min-h-0 ${cardRows.teams}">
-                ${this.renderLobbyCard(
-                  teams,
-                  getGameModeLabel(teams.gameConfig!),
-                )}
-              </div>`
-            : nothing}
-          ${special
-            ? html`<div class="min-w-0 sm:min-h-0 ${cardRows.special}">
-                ${this.renderLobbyCard(
-                  special,
-                  getGameModeLabel(special.gameConfig!),
-                )}
-              </div>`
-            : nothing}
-          ${this.renderUpcomingHeading()}
-        </section>
-
-        ${this.showTrustRequired
-          ? trustRequiredDialog(
-              this.viewerSignedIn,
-              () => (this.showTrustRequired = false),
-            )
-          : nothing}
       </div>
     `;
   }

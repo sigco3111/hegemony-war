@@ -14,12 +14,16 @@
     }
   ],
   "orientation": "portrait",
-  "display_override": ["fullscreen", "minimal-ui"],
+  "display_override": [
+    "fullscreen",
+    "minimal-ui"
+  ],
   "display": "standalone",
   "dir": "auto",
-  "lang": "en",
-  "name": "OpenFront.io",
-  "short_name": "OpenFront",
+  "lang": "ko",
+  "name": "패권의 시간 (Age of Hegemony)",
+  "short_name": "패권의 시간",
   "start_url": "/",
-  "id": "/"
+  "id": "/",
+  "description": "AI 국가들과 세계의 패권을 겨루는 싱글플레이 전략 게임"
 }

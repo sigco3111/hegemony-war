@@ -216,8 +216,10 @@ export default defineConfig(({ mode }) => {
     assetManifest: JSON.stringify(assetManifest),
     cdnBase: JSON.stringify(cdnBase),
     gameEnv: JSON.stringify(env.GAME_ENV ?? "dev"),
-    cluster: devClusterJson,
-    instanceLetter: JSON.stringify(devInstanceLetter),
+    cluster: env.PAGES_BASE ? undefined : devClusterJson,
+    instanceLetter: env.PAGES_BASE
+      ? undefined
+      : JSON.stringify(devInstanceLetter),
     turnstileSiteKey: JSON.stringify(
       env.TURNSTILE_SITE_KEY ?? "1x00000000000000000000AA",
     ),
@@ -229,7 +231,7 @@ export default defineConfig(({ mode }) => {
       : undefined,
     instanceId: JSON.stringify(env.INSTANCE_ID ?? "DEV_ID"),
     manifestHref: buildAssetUrl("manifest.json", assetManifest, cdnBase),
-    faviconHref: buildAssetUrl("images/Favicon.svg", assetManifest, cdnBase),
+    faviconHref: buildAssetUrl("images/HegemonyMark.svg", assetManifest, cdnBase),
     gameplayScreenshotUrl: buildAssetUrl(
       "images/GameplayScreenshot.png",
       assetManifest,
@@ -241,11 +243,11 @@ export default defineConfig(({ mode }) => {
       cdnBase,
     ),
     desktopLogoImageUrl: buildAssetUrl(
-      "images/OpenFront.png",
+      "images/HegemonyLogo.svg",
       assetManifest,
       cdnBase,
     ),
-    mobileLogoImageUrl: buildAssetUrl("images/OF.png", assetManifest, cdnBase),
+    mobileLogoImageUrl: buildAssetUrl("images/HegemonyMark.svg", assetManifest, cdnBase),
   };
 
   // Vite's HTML transform replaces the source <script src="/src/client/Main.ts">
@@ -358,7 +360,7 @@ export default defineConfig(({ mode }) => {
       ],
     },
     root: "./",
-    base: "/",
+    base: env.PAGES_BASE ?? "/",
     publicDir: isProduction ? false : "resources",
 
     // Vite's JS preload helper (`__vitePreload`, used by dynamic import())
