@@ -8,7 +8,7 @@ import {
   GameUpdateType,
 } from "@openfront/engine-api/game/GameUpdates";
 import { EventBus } from "@openfront/shared/EventBus";
-import { html, LitElement, nothing, TemplateResult } from "lit";
+import { html, LitElement, nothing, svg, TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { Controller } from "../../Controller";
 import { formatRecordDuration } from "../../LocalRecords";
@@ -289,7 +289,7 @@ export class WarDashboard extends LitElement implements Controller {
     let offset = 25; // start at 12 o'clock
     const segs = shares.map((s) => {
       const len = Math.max(s.pct, 0.2);
-      const seg = html`<circle
+      const seg = svg`<circle
         r="15.915"
         cx="21"
         cy="21"
@@ -363,7 +363,7 @@ export class WarDashboard extends LitElement implements Controller {
         })
         .join(" ");
       const emphasized = id === myId;
-      return html`
+      return svg`
         <polyline
           points=${pts}
           fill="none"
