@@ -4,6 +4,8 @@ import {
   AllianceRequestReplyUpdate,
   BrokeAllianceUpdate,
   ConquestUpdate,
+  DiplomacyNoteReason,
+  DiplomacyNoteUpdate,
   EmbargoUpdate,
   GameUpdateType,
 } from "@openfront/engine-api/game/GameUpdates";
@@ -45,6 +47,14 @@ interface ChronicleEntry {
   a?: PlayerFace;
   b?: PlayerFace;
   troops?: number;
+  // 개선5: factual reason the acting AI nation emitted for this move.
+  reason?: { code: DiplomacyNoteReason; threat?: PlayerFace };
+}
+
+interface RecentNote {
+  tick: number;
+  reason: DiplomacyNoteReason;
+  threatID: number | null;
 }
 
 // Samples land every SAMPLE_EVERY_TICKS; when the buffer is full every other
@@ -69,6 +79,9 @@ export class WarDashboard extends LitElement implements Controller {
   private faces = new Map<string, PlayerFace>();
   private seenAttacks = new Set<string>();
   private lastTickSampled = -1;
+  // "actorSmallID->targetSmallID" -> latest note, kept for a few ticks so a
+  // note and the event it explains match even across a tick boundary.
+  private recentNotes = new Map<string, RecentNote>();
 
   createRenderRoot() {
     return this;
@@ -155,6 +168,23 @@ export class WarDashboard extends LitElement implements Controller {
     }
   }
 
+  // The acceptor's note explains a formed alliance (actor = recipient, or
+  // the requestor for AI-initiated containment outreach); the breaker's note
+  // explains a break (actor = traitor). Match either direction of the pair.
+  private findNote(
+    x: number,
+    y: number,
+  ): { code: DiplomacyNoteReason; threat?: PlayerFace } | undefined {
+    const note =
+      this.recentNotes.get(`${x}->${y}`) ?? this.recentNotes.get(`${y}->${x}`);
+    if (note === undefined) return undefined;
+    return {
+      code: note.reason,
+      threat:
+        note.threatID === null ? undefined : this.faceBySmallID(note.threatID),
+    };
+  }
+
   private pushChronicle(entry: ChronicleEntry) {
     this.chronicle.push(entry);
     if (this.chronicle.length > MAX_CHRONICLE) {
@@ -197,6 +227,21 @@ export class WarDashboard extends LitElement implements Controller {
     if (updates === null) return;
     const t = this.game.ticks();
 
+    // Notes first: the alliance/break entries below look them up.
+    for (const n of (updates[GameUpdateType.DiplomacyNote] ??
+      []) as DiplomacyNoteUpdate[]) {
+      this.recentNotes.set(`${n.actorID}->${n.targetID}`, {
+        tick: t,
+        reason: n.reason,
+        threatID: n.threatID,
+      });
+    }
+    if (this.recentNotes.size > 120) {
+      for (const [k, v] of this.recentNotes) {
+        if (v.tick < t - 200) this.recentNotes.delete(k);
+      }
+    }
+
     for (const c of (updates[GameUpdateType.ConquestEvent] ??
       []) as ConquestUpdate[]) {
       this.pushChronicle({
@@ -214,6 +259,10 @@ export class WarDashboard extends LitElement implements Controller {
         kind: "alliance",
         a: this.faceBySmallID(r.request.requestorID),
         b: this.faceBySmallID(r.request.recipientID),
+        reason: this.findNote(
+          r.request.recipientID,
+          r.request.requestorID,
+        ),
       });
     }
     for (const b of (updates[GameUpdateType.BrokeAlliance] ??
@@ -223,6 +272,7 @@ export class WarDashboard extends LitElement implements Controller {
         kind: "allianceBroken",
         a: this.faceBySmallID(b.traitorID),
         b: this.faceBySmallID(b.betrayedID),
+        reason: this.findNote(b.traitorID, b.betrayedID),
       });
     }
     for (const x of (updates[GameUpdateType.AllianceExpired] ??
@@ -437,7 +487,15 @@ export class WarDashboard extends LitElement implements Controller {
           >${name(e.a)}
           <span class="text-white/40">${twoWay ? " ↔ " : " → "}</span>
           ${name(e.b)}
-          <span class="text-white/55"> ${translateText(labelKey)}</span></span
+          <span class="text-white/55"> ${translateText(labelKey)}</span>
+          ${e.reason === undefined
+            ? nothing
+            : html`<span class="text-white/40">
+                —
+                ${translateText(`war_dashboard.r_${e.reason.code}`, {
+                  threat: e.reason.threat?.name ?? "",
+                })}</span
+              >`}</span
         >
       </div>
     `;

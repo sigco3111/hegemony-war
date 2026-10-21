@@ -2460,7 +2460,14 @@
     "k_alliance": "동맹 체결",
     "k_broken": "동맹 파기",
     "k_expired": "동맹 만료",
-    "k_embargo": "교역 중단"
+    "k_embargo": "교역 중단",
+    "r_accept_containment": "도주 선두 {threat} 견제 연합",
+    "r_break_hegemon": "패권국과 결별 (견제)",
+    "r_betray_opportunistic": "다굴당하는 동맹에 배신 합류",
+    "r_betray_juiciest": "최대 이득을 노린 배신",
+    "r_betray_weak": "압도적 열세 동맹 배신",
+    "r_betray_traitor": "배신자 응징",
+    "r_betray_lonely": "유일 인접국 배신"
   },
   "challenges": {
     "title": "챌린지",
@@ -2512,5 +2519,25 @@
       "title": "압도적 열세",
       "desc": "봇 300 이상 상대로 승리 (어려움 이상)"
     }
+  },
+  "diplomacy_board": {
+    "title": "외교",
+    "threats": "나를 겨냥한 위협",
+    "threats_empty": "현재 나를 공격하는 세력이 없습니다",
+    "hegemon": "패권 위협: {name} — 전체 영토의 {pct}%를 차지했습니다. 견제 연합이 움직일 수 있습니다.",
+    "alliances": "동맹 관계",
+    "alliances_empty": "아직 맺어진 동맹이 없습니다",
+    "remaining": "{time} 남음",
+    "nations": "국가 현황",
+    "st_allied": "동맹",
+    "st_pending_out": "제안 보냄",
+    "st_pending_in": "제안 받음",
+    "st_war": "교전 중",
+    "st_neutral": "중립",
+    "offer": "동맹 제안",
+    "break": "동맹 파기",
+    "waiting_reply": "응답 대기 중",
+    "allies_of": "동맹: {list}",
+    "disabled": "이 게임은 동맹이 꺼져 있습니다"
   }
 }

@@ -58,7 +58,7 @@ interface LocalRecordsData {
   // backfilled by the one-time migration when their record is still around.
   challengeProofs?: Record<string, SoloGameRecord>;
   // One-time data migrations that already ran (never re-run).
-  migrations?: { scenarioGateV2?: boolean };
+  migrations?: { scenarioGateV2?: boolean; scenarioGateV3?: boolean };
 }
 
 const STORAGE_KEY = "hegemony.records.v1";

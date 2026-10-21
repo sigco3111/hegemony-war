@@ -72,6 +72,19 @@ OpenFrontIO를 싱글플레이 중심으로 개선한 포크입니다. 서버 �
 - 동맹 끄기 설정에서는 전부 발동하지 않습니다.
 - 구현: `packages/engine/src/execution/nation/NationAllianceBehavior.ts`의 `maybeContainmentDiplomacy` 등. `NationExecution`이 매 공격 틱에 호출하며, 동맹 체결·파기는 전황 대시보드 연대기에 기록됩니다.
 
+## 개선 5 — 외교 상황판과 AI 외교 설명
+
+개선 4에서 만든 AI 외교를 플레이어가 읽고 활용할 수 있게 합니다.
+
+- `src/client/hud/layers/DiplomacyBoard.ts`: 싱글 게임 왼쪽 사이드바의 악수 버튼으로 여는 외교 상황판입니다.
+  - 위협: 나를 공격 중인 세력과 총 병력, 도주 선두(패권 위협) 배너. 판정은 엔진 `findRunawayLeader`와 같은 규칙(난이도별 배수, FFA 한정)을 클라이언트에서 미러링합니다.
+  - 동맹 관계: 살아있는 국가들의 모든 동맹 쌍과 남은 시간. 내 동맹은 강조합니다.
+  - 국가 현황: 국가별 점유율·관계 상태(동맹/제안 보냄/제안 받음/교전 중/중립)·그 국가의 동맹 목록과 동맹 제안/파기 버튼. 기존 의도 파이프라인(`SendAllianceRequestIntentEvent` / `SendBreakAllianceIntentEvent`)을 그대로 쓰며, 동맹 끄기 설정에서는 숨깁니다.
+- AI 행동 이유: `NationAllianceBehavior`가 판단 순간에 `GameUpdateType.DiplomacyNote` 업데이트(행위자·대상·위협·이유 코드)를 내보내고, 전황 대시보드 연대기가 동맹 체결/파기 항목에 그 이유를 덧붙입니다.
+  - `accept_containment`(견제 연합 수락), `break_hegemon`(패권국 동맹 파기), `betray_opportunistic`(기회주의 배신)는 개선 4 분기입니다.
+  - `betray_juiciest`·`betray_weak`·`betray_traitor`·`betray_lonely`는 원작 배신 분기의 이유 표기입니다.
+  - 동맹 수락 판단은 `decideAlliance`가 어떤 분기가 결정했는지 함께 반환해, 견제가 실제 결정 사유일 때만 표기합니다.
+
 ## 네트워크 차단 (soloStatic)
 
 정적 배포에서는 외부 서버가 없으므로, 서버 의존 경로를 소스에서 차단합니다. `ClientEnv.soloStatic()`(PAGES_BASE 설정 빌드에서 참)을 게이트로 씁니다.

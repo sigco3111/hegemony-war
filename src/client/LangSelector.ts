@@ -124,9 +124,10 @@ export class LangSelector extends LitElement {
     // just how the DEFAULT is picked -- see defaultLocale, and note it is
     // consulted afresh each launch rather than persisted, so a player who
     // changes their Steam language sees the game follow.
-    const browserLocale = this.defaultLocale();
     const savedLang = localStorage.getItem("lang");
-    const userLang = this.getClosestSupportedLang(savedLang ?? "ko" ?? browserLocale);
+    // Korean fork default: saved choice wins, otherwise Korean. (The previous
+    // `savedLang ?? "ko" ?? browserLocale` never reached browserLocale.)
+    const userLang = this.getClosestSupportedLang(savedLang ?? "ko");
 
     const [defaultTranslations, translations] = await Promise.all([
       this.loadLanguage("en"),

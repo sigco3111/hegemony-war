@@ -1,9 +1,14 @@
 import {
   Difficulty,
   GameMode,
+  GameUpdates,
   PlayerInfo,
   PlayerType,
 } from "@openfront/engine-api/game/GameTypes";
+import {
+  DiplomacyNoteUpdate,
+  GameUpdateType,
+} from "@openfront/engine-api/game/GameUpdates";
 import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
 import { AllianceRequestExecution } from "@openfront/engine/execution/alliance/AllianceRequestExecution";
 import { AttackExecution } from "@openfront/engine/execution/AttackExecution";
@@ -100,6 +105,40 @@ function callMaybeBetray(ctx: Ctx): boolean {
     [ctx.dogA, ctx.dogB], // borderingEnemies: 3 total borders, not 1
   );
 }
+
+describe("개선5 diplomacy notes (factual AI reasons for the chronicle)", () => {
+  it("emits betray_opportunistic naming actor, target and no threat", async () => {
+    const ctx = await setupDogpile(Difficulty.Hard);
+    dogpile(ctx, 40_000);
+
+    expect(callMaybeBetray(ctx)).toBe(true);
+    // maybeBetray runs outside a tick here, and executeNextTick resets the
+    // update map at tick start - so read the map the note was just added to.
+    const updates = (ctx.game as unknown as { updates: GameUpdates }).updates;
+    const notes = (updates[GameUpdateType.DiplomacyNote] ??
+      []) as DiplomacyNoteUpdate[];
+    expect(
+      notes.some(
+        (n) =>
+          n.reason === "betray_opportunistic" &&
+          n.actorID === ctx.nation.smallID() &&
+          n.targetID === ctx.ally.smallID() &&
+          n.threatID === null,
+      ),
+    ).toBe(true);
+  });
+
+  it("emits no note when no betrayal branch fires", async () => {
+    const ctx = await setupDogpile(Difficulty.Hard);
+    dogpile(ctx, 5_000); // too weak to trigger
+
+    expect(callMaybeBetray(ctx)).toBe(false);
+    const updates = (ctx.game as unknown as { updates: GameUpdates }).updates;
+    const notes = (updates[GameUpdateType.DiplomacyNote] ??
+      []) as DiplomacyNoteUpdate[];
+    expect(notes).toHaveLength(0);
+  });
+});
 
 describe("opportunistic betrayal (trigger: ally dogpiled, nation stronger)", () => {
   it("betrays the dogpiled ally on Hard", async () => {

@@ -8,6 +8,7 @@ import {
 import {
   AllianceRequestReplyUpdate,
   BrokeAllianceUpdate,
+  DiplomacyNoteUpdate,
   GameUpdateType,
 } from "@openfront/engine-api/game/GameUpdates";
 import { AllianceRequestExecution } from "@openfront/engine/execution/alliance/AllianceRequestExecution";
@@ -91,10 +92,15 @@ async function setupIntegration(
 interface TickLog {
   acceptedReplies: AllianceRequestReplyUpdate[];
   brokeAlliances: BrokeAllianceUpdate[];
+  diplomacyNotes: DiplomacyNoteUpdate[];
 }
 
 function tickUntil(game: Game, stop: () => boolean): TickLog {
-  const log: TickLog = { acceptedReplies: [], brokeAlliances: [] };
+  const log: TickLog = {
+    acceptedReplies: [],
+    brokeAlliances: [],
+    diplomacyNotes: [],
+  };
   for (let i = 0; i < MAX_TICKS && !stop(); i++) {
     const updates = game.executeNextTick();
     for (const r of (updates[GameUpdateType.AllianceRequestReply] ??
@@ -104,6 +110,10 @@ function tickUntil(game: Game, stop: () => boolean): TickLog {
     for (const b of (updates[GameUpdateType.BrokeAlliance] ??
       []) as BrokeAllianceUpdate[]) {
       log.brokeAlliances.push(b);
+    }
+    for (const n of (updates[GameUpdateType.DiplomacyNote] ??
+      []) as DiplomacyNoteUpdate[]) {
+      log.diplomacyNotes.push(n);
     }
   }
   return log;
@@ -133,6 +143,19 @@ describe("containment integration (engine tick loop, deployed wiring)", () => {
     // Nobody allied with the hegemon in the process.
     expect(nationA.isAlliedWith(leader)).toBe(false);
     expect(nationB.isAlliedWith(leader)).toBe(false);
+
+    // 개선5 chronicle feed: the acceptor emitted a factual containment note
+    // naming the runaway leader as the threat.
+    const nationIDs = [nationA.smallID(), nationB.smallID()];
+    expect(
+      log.diplomacyNotes.some(
+        (n) =>
+          n.reason === "accept_containment" &&
+          nationIDs.includes(n.actorID) &&
+          nationIDs.includes(n.targetID) &&
+          n.threatID === leader.smallID(),
+      ),
+    ).toBe(true);
   });
 
   it("a nation allied with the runaway leader breaks it (betrayal)", async () => {
@@ -155,6 +178,17 @@ describe("containment integration (engine tick loop, deployed wiring)", () => {
           b.betrayedID === leader.smallID(),
       ),
     ).toBe(true);
+    // 개선5 chronicle feed: a hegemon-break note names both the leader as
+    // target and as the contained threat.
+    expect(
+      log.diplomacyNotes.some(
+        (n) =>
+          n.reason === "break_hegemon" &&
+          n.actorID === nationA.smallID() &&
+          n.targetID === leader.smallID() &&
+          n.threatID === leader.smallID(),
+      ),
+    ).toBe(true);
   });
 
   it("sends no cross-border coalition when no leader runs away", async () => {
@@ -170,6 +204,10 @@ describe("containment integration (engine tick loop, deployed wiring)", () => {
     expect(nationA.isAlliedWith(nationB)).toBe(false);
     expect(
       log.acceptedReplies.some((r) => involvesBoth(r, nationA, nationB)),
+    ).toBe(false);
+    // No runaway leader: no containment notes either.
+    expect(
+      log.diplomacyNotes.some((n) => n.reason === "accept_containment"),
     ).toBe(false);
   });
 });

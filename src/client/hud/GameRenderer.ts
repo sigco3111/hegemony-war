@@ -47,6 +47,7 @@ import { SettingsModal } from "./layers/SettingsModal";
 import { SpawnTimer } from "./layers/SpawnTimer";
 import { TutorialPanel } from "./layers/TutorialPanel";
 import { UnitDisplay } from "./layers/UnitDisplay";
+import { DiplomacyBoard } from "./layers/DiplomacyBoard";
 import { WarDashboard } from "./layers/WarDashboard";
 import { WinModal } from "./layers/WinModal";
 import { loadAllSprites } from "./SpriteLoader";
@@ -197,6 +198,15 @@ export function createRenderer(
   }
   warDashboard.game = game;
   warDashboard.eventBus = eventBus;
+
+  const diplomacyBoard = document.querySelector(
+    "diplomacy-board",
+  ) as DiplomacyBoard;
+  if (!(diplomacyBoard instanceof DiplomacyBoard)) {
+    console.error("diplomacy board not found");
+  }
+  diplomacyBoard.game = game;
+  diplomacyBoard.eventBus = eventBus;
 
   const settingsModal = document.querySelector(
     "settings-modal",
@@ -366,6 +376,7 @@ export function createRenderer(
     gameLeftSidebar,
     unitDisplay,
     warDashboard,
+    diplomacyBoard,
     gameRightSidebar,
     controlPanel,
     playerInfo,

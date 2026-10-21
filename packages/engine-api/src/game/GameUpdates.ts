@@ -115,6 +115,8 @@ export enum GameUpdateType {
   SpawnPhaseEnd,
   GamePaused,
   DonateEvent,
+  // 개선5 diplomacy board: factual reasons behind AI diplomacy decisions.
+  DiplomacyNote,
 }
 
 export type GameUpdate =
@@ -140,7 +142,8 @@ export type GameUpdate =
   | EmbargoUpdate
   | SpawnPhaseEndUpdate
   | GamePausedUpdate
-  | DonateEventUpdate;
+  | DonateEventUpdate
+  | DiplomacyNoteUpdate;
 
 export interface BonusEventUpdate {
   type: GameUpdateType.BonusEvent;
@@ -319,6 +322,33 @@ export interface AllianceExtensionUpdate {
   type: GameUpdateType.AllianceExtension;
   playerID: number;
   allianceID: number;
+}
+
+// 개선5: why an AI nation made a diplomacy decision. Emitted by
+// NationAllianceBehavior at the decision moment, so the client chronicle can
+// attach a factual reason to the alliance formed/broken entry it renders.
+export type DiplomacyNoteReason =
+  // Accepted an alliance as containment against the runaway leader (개선4).
+  | "accept_containment"
+  // Broke an alliance because the ally became the runaway leader (개선4).
+  | "break_hegemon"
+  // Joined a dogpile on an ally being overwhelmed by others (개선4).
+  | "betray_opportunistic"
+  // Upstream: betrayed the juiciest ally when it was safe.
+  | "betray_juiciest"
+  // Upstream: betrayed a far weaker ally (Easy/Medium).
+  | "betray_weak"
+  // Upstream: betrayed a known traitor.
+  | "betray_traitor"
+  // Upstream: betrayed the only neighboring player while much stronger.
+  | "betray_lonely";
+
+export interface DiplomacyNoteUpdate {
+  type: GameUpdateType.DiplomacyNote;
+  actorID: number;
+  targetID: number;
+  threatID: number | null;
+  reason: DiplomacyNoteReason;
 }
 
 export interface TargetPlayerUpdate {

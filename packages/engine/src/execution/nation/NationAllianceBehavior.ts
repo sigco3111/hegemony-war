@@ -4,6 +4,10 @@ import {
   PlayerType,
   Relation,
 } from "@openfront/engine-api/game/GameTypes";
+import {
+  DiplomacyNoteReason,
+  GameUpdateType,
+} from "@openfront/engine-api/game/GameUpdates";
 import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
 import {
   readVersioned,
@@ -67,7 +71,13 @@ export class NationAllianceBehavior {
         req.reject();
         continue;
       }
-      if (this.getAllianceDecision(req.requestor(), true)) {
+      const decision = this.decideAlliance(req.requestor(), true);
+      if (decision.accept) {
+        // 개선5: surface why the nation accepted. Today only the containment
+        // branch is noteworthy enough to explain to the player.
+        if (decision.reason === "containment") {
+          this.note("accept_containment", req.requestor(), this.commonThreat());
+        }
         req.accept();
       } else {
         req.reject();
@@ -119,25 +129,35 @@ export class NationAllianceBehavior {
     otherPlayer: Player,
     isResponse: boolean,
   ): boolean {
+    return this.decideAlliance(otherPlayer, isResponse).accept;
+  }
+
+  // The same decision cascade as getAllianceDecision, but it also reports
+  // which branch made the call. 개선5 uses the reason to emit factual
+  // DiplomacyNote updates explaining AI diplomacy to the player.
+  private decideAlliance(
+    otherPlayer: Player,
+    isResponse: boolean,
+  ): { accept: boolean; reason: string } {
     // Easy (dumb) nations sometimes get confused and accept/reject randomly (Just like dumb humans do)
     if (this.isConfused()) {
-      return this.random.chance(2);
+      return { accept: this.random.chance(2), reason: "confused" };
     }
     // Nearly always reject traitors
     if (otherPlayer.isTraitor() && this.random.nextInt(0, 100) >= 10) {
       if (isResponse && this.random.chance(3)) {
         this.emojiBehavior.sendEmoji(otherPlayer, EMOJI_CONFUSED);
       }
-      return false;
+      return { accept: false, reason: "traitor" };
     }
     // Reject if otherPlayer has allied with a lot of players (Hard and Impossible only)
     // To make sure there are enough non-friendly players in the game to stop the crown with nukes
     if (this.hasTooManyAlliances(otherPlayer)) {
-      return false;
+      return { accept: false, reason: "too_many_alliances" };
     }
     // Don't help a runaway leader grow even further (Medium and up)
     if (this.isRunawayLeader(otherPlayer)) {
-      return false;
+      return { accept: false, reason: "runaway_leader" };
     }
     // Common-threat containment: when a runaway leader dominates the map and
     // clearly out-guns both of us, band together even if we are not similarly
@@ -150,7 +170,7 @@ export class NationAllianceBehavior {
           isResponse ? EMOJI_LOVE : EMOJI_SCARED_OF_THREAT,
         );
       }
-      return true;
+      return { accept: true, reason: "containment" };
     }
     // Before caring about the relation, first check if the otherPlayer is a threat
     // Easy (dumb) nations are blinded by hatred, they don't care about threats, they care about the relation
@@ -162,36 +182,55 @@ export class NationAllianceBehavior {
       if (isResponse && this.random.chance(6)) {
         this.emojiBehavior.sendEmoji(otherPlayer, EMOJI_LOVE);
       }
-      return true;
+      return { accept: true, reason: "threat" };
     }
     // Maybe reject if we are in a team game (allying makes less sense there)
     if (this.shouldRejectInTeamGame()) {
-      return false;
+      return { accept: false, reason: "team" };
     }
     // Reject if relation is bad
     if (this.player.relation(otherPlayer) < Relation.Neutral) {
       if (isResponse && this.random.chance(3)) {
         this.emojiBehavior.sendEmoji(otherPlayer, EMOJI_CONFUSED);
       }
-      return false;
+      return { accept: false, reason: "relation" };
     }
     // Maybe accept if relation is friendly
     if (this.isAlliancePartnerFriendly(otherPlayer)) {
       if (this.random.chance(3)) {
         this.emojiBehavior.sendEmoji(otherPlayer, EMOJI_HANDSHAKE);
       }
-      return true;
+      return { accept: true, reason: "friendly" };
     }
     // Reject if we already have some alliances, we don't want to ally with the entire map
     if (this.checkAlreadyEnoughAlliances(otherPlayer)) {
-      return false;
+      return { accept: false, reason: "enough_alliances" };
     }
     // Maybe accept if we are in the earlygame
     if (this.isEarlygame()) {
-      return true;
+      return { accept: true, reason: "earlygame" };
     }
     // Accept if we are similarly strong
-    return this.isAlliancePartnerSimilarlyStrong(otherPlayer);
+    return {
+      accept: this.isAlliancePartnerSimilarlyStrong(otherPlayer),
+      reason: "similar_strength",
+    };
+  }
+
+  // 개선5: factual record of why this nation made a diplomacy move, consumed
+  // by the client war chronicle next to the alliance formed/broken entry.
+  private note(
+    reason: DiplomacyNoteReason,
+    target: Player,
+    threat: Player | null = null,
+  ): void {
+    this.game.addUpdate({
+      type: GameUpdateType.DiplomacyNote,
+      actorID: this.player.smallID(),
+      targetID: target.smallID(),
+      threatID: threat?.smallID() ?? null,
+      reason,
+    });
   }
 
   private hasTooManyAlliances(otherPlayer: Player): boolean {
@@ -454,7 +493,7 @@ export class NationAllianceBehavior {
     if (threat.troops() > this.player.troops() * 2) {
       const alliance = this.player.allianceWith(threat);
       if (alliance) {
-        this.betray(threat);
+        this.betray(threat, "break_hegemon");
         return;
       }
     }
@@ -493,7 +532,7 @@ export class NationAllianceBehavior {
       juiciestAlly === otherPlayer &&
       this.isSafeToBetray(otherPlayer, borderingFriends, borderingEnemies)
     ) {
-      this.betray(otherPlayer);
+      this.betray(otherPlayer, "betray_juiciest");
       return true;
     }
 
@@ -508,7 +547,7 @@ export class NationAllianceBehavior {
       ) &&
       this.player.troops() >= otherPlayer.troops() * 10
     ) {
-      this.betray(otherPlayer);
+      this.betray(otherPlayer, "betray_weak");
       return true;
     }
 
@@ -518,7 +557,7 @@ export class NationAllianceBehavior {
       otherPlayer.isTraitor() &&
       otherPlayer.troops() < this.player.troops() * 1.2
     ) {
-      this.betray(otherPlayer);
+      this.betray(otherPlayer, "betray_traitor");
       return true;
     }
 
@@ -533,7 +572,7 @@ export class NationAllianceBehavior {
         otherPlayer.troops() &&
       this.player.troops() > otherPlayer.troops()
     ) {
-      this.betray(otherPlayer);
+      this.betray(otherPlayer, "betray_opportunistic");
       return true;
     }
 
@@ -543,7 +582,7 @@ export class NationAllianceBehavior {
       borderingFriends.length + borderingEnemies.length === 1 &&
       otherPlayer.troops() * 3 < this.player.troops()
     ) {
-      this.betray(otherPlayer);
+      this.betray(otherPlayer, "betray_lonely");
       return true;
     }
 
@@ -580,10 +619,12 @@ export class NationAllianceBehavior {
     return nearbyThreatTroops < this.player.troops() * 0.33;
   }
 
-  private betray(target: Player): void {
+  private betray(target: Player, reason: DiplomacyNoteReason): void {
     const alliance = this.player.allianceWith(target);
     if (!alliance) return;
     this.player.breakAlliance(alliance);
+    // For a hegemon break the target is itself the threat being contained.
+    this.note(reason, target, reason === "break_hegemon" ? target : null);
   }
 }
 

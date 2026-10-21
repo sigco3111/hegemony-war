@@ -2804,7 +2804,14 @@
     "k_alliance": "alliance formed",
     "k_broken": "alliance broken",
     "k_expired": "alliance expired",
-    "k_embargo": "embargo"
+    "k_embargo": "embargo",
+    "r_accept_containment": "containment coalition against runaway leader {threat}",
+    "r_break_hegemon": "broke away from the hegemon (containment)",
+    "r_betray_opportunistic": "joined the dogpile on a overwhelmed ally",
+    "r_betray_juiciest": "betrayed for maximum gain",
+    "r_betray_weak": "betrayed a far weaker ally",
+    "r_betray_traitor": "punished a traitor",
+    "r_betray_lonely": "betrayed its only neighbor"
   },
   "challenges": {
     "title": "Challenges",
@@ -2856,5 +2863,25 @@
       "title": "Outnumbered",
       "desc": "Win against 300+ bots (Hard or higher)"
     }
+  },
+  "diplomacy_board": {
+    "title": "Diplomacy",
+    "threats": "Threats against you",
+    "threats_empty": "No one is attacking you right now",
+    "hegemon": "Hegemon threat: {name} holds {pct}% of all land. Containment coalitions may form.",
+    "alliances": "Alliances",
+    "alliances_empty": "No alliances yet",
+    "remaining": "{time} left",
+    "nations": "Nations",
+    "st_allied": "Allied",
+    "st_pending_out": "Requested",
+    "st_pending_in": "Request received",
+    "st_war": "At war",
+    "st_neutral": "Neutral",
+    "offer": "Propose alliance",
+    "break": "Break alliance",
+    "waiting_reply": "Awaiting reply",
+    "allies_of": "Allies: {list}",
+    "disabled": "Alliances are disabled in this game"
   }
 }

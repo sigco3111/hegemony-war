@@ -14,6 +14,7 @@ import { themeProvider } from "../../theme/ThemeProvider";
 import { getTranslatedPlayerTeamLabel, translateText } from "../../Utils";
 import type { GameView } from "../../view";
 import { ImmunityBarVisibleEvent } from "./ImmunityTimer";
+import { ToggleDiplomacyBoardEvent } from "./DiplomacyBoard";
 import { ToggleWarDashboardEvent } from "./WarDashboard";
 import "./PlayerStats";
 import type { PlayerStats } from "./PlayerStats";
@@ -118,7 +119,14 @@ export class GameLeftSidebar extends LitElement implements Controller {
   }
 
   private toggleWarDashboard(): void {
+    // The two solo overlays stack in the same spot: never show both.
+    this.eventBus?.emit(new ToggleDiplomacyBoardEvent(false));
     this.eventBus?.emit(new ToggleWarDashboardEvent());
+  }
+
+  private toggleDiplomacyBoard(): void {
+    this.eventBus?.emit(new ToggleWarDashboardEvent(false));
+    this.eventBus?.emit(new ToggleDiplomacyBoardEvent());
   }
 
   private get isTeamGame(): boolean {
@@ -185,6 +193,46 @@ export class GameLeftSidebar extends LitElement implements Controller {
                     <rect x="2" y="10" width="4" height="8" rx="1" fill="#fff" />
                     <rect x="8" y="6" width="4" height="12" rx="1" fill="#fff" />
                     <rect x="14" y="2" width="4" height="16" rx="1" fill="#fff" />
+                  </svg>
+                </div>
+                <div
+                  class="cursor-pointer p-0.5 bg-gray-700/50 hover:bg-gray-600 border rounded-md border-slate-500 transition-colors"
+                  @click=${this.toggleDiplomacyBoard}
+                  role="button"
+                  tabindex="0"
+                  title=${translateText("diplomacy_board.title")}
+                  @keydown=${(e: KeyboardEvent) => {
+                    if (
+                      e.key === "Enter" ||
+                      e.key === " " ||
+                      e.code === "Space"
+                    ) {
+                      e.preventDefault();
+                      this.toggleDiplomacyBoard();
+                    }
+                  }}
+                >
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M7 11.5 3.5 8a2.5 2.5 0 0 1 3.5-3.5l3 3 3-3A2.5 2.5 0 0 1 16.5 8l-5.2 5.2a2.2 2.2 0 0 1-3.1 0L7 12"
+                      stroke="#fff"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      fill="none"
+                    />
+                    <path
+                      d="M7 11.5 4.6 13.9M13 11.5l2.4 2.4"
+                      stroke="#fff"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                    />
                   </svg>
                 </div>
               `
