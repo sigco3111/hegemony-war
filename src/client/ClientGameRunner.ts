@@ -1,6 +1,7 @@
 import { TileRef } from "@openfront/engine-api/game/GameMap";
 import {
   BuildableUnit,
+  GameType,
   PlayerType,
   Structures,
   UnitType,
@@ -89,6 +90,7 @@ import {
   SendUpgradeStructureIntentEvent,
   Transport,
 } from "./Transport";
+import { clampPlanRatio, QueuePlanOrderEvent } from "./WarPlan";
 import {
   GRAPHICS_KEY,
   USER_SETTINGS_CHANGED_EVENT,
@@ -1256,6 +1258,19 @@ export class ClientGameRunner {
       .actions(tile, [UnitType.TransportShip])
       .then((actions) => {
         if (actions.canAttack) {
+          // 개선 7: while paused the LocalServer would drop this intent, so
+          // queue it as a plan order instead (neutral land -> null target).
+          if (this.shouldQueuePlanOrder()) {
+            this.eventBus.emit(
+              new QueuePlanOrderEvent(
+                "attack",
+                this.gameView.owner(tile).id(),
+                null,
+                clampPlanRatio(this.renderer.uiState.attackRatio * 100),
+              ),
+            );
+            return;
+          }
           this.eventBus.emit(
             new SendAttackIntentEvent(
               this.gameView.owner(tile).id(),
@@ -1599,8 +1614,33 @@ export class ClientGameRunner {
     return bu?.canBuild ?? false;
   }
 
+  private shouldQueuePlanOrder(): boolean {
+    if (!this.renderer.uiState.paused) return false;
+    if (
+      this.gameView.config().gameConfig().gameType !== GameType.Singleplayer
+    ) {
+      return false;
+    }
+    if (this.gameView.config().isReplay()) return false;
+    if (this.gameView.inSpawnPhase()) return false;
+    return true;
+  }
+
   private sendBoatAttackIntent(tile: TileRef) {
     if (!this.myPlayer) return;
+
+    // 개선 7: queue the boat attack as a plan order while paused.
+    if (this.shouldQueuePlanOrder()) {
+      this.eventBus.emit(
+        new QueuePlanOrderEvent(
+          "boat",
+          null,
+          tile,
+          clampPlanRatio(this.renderer.uiState.attackRatio * 100),
+        ),
+      );
+      return;
+    }
 
     this.eventBus.emit(
       new SendBoatAttackIntentEvent(

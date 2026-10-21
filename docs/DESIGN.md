@@ -104,7 +104,7 @@ OpenFrontIO를 싱글플레이 중심으로 개선한 포크입니다. 서버 �
 일시정지는 원래 의도를 모두 버리는 구간이었습니다(LocalServer가 pause 중 비-pause 의도를 폐기). 이제는 멈춰 있는 동안 공격을 예약해 두고, 재개할 때 순서대로 실행합니다.
 
 - `src/client/WarPlan.ts`: 예약 큐의 순수 로직. 작전은 대상(국가 또는 중립지, 수송선 공격은 목적지 타일)과 병력 비율(1–100%)을 저장하고, 같은 대상의 중복 예약도 연속 파상공격으로 의미가 있으므로 그대로 둡니다. 순서 변경·삭제·비율 조정(5% 단위)을 지원합니다.
-- 의도 가로채기: `PlayerActionHandler.handleAttack`/`handleBoatAttack`이 `uiState.paused`(GameRenderer가 `PauseGameIntentEvent`로 유지)이고 싱글 플레이·리플레이 아님·스폰 이후일 때, 의도를 보내는 대신 `QueuePlanOrderEvent`로 큐에 넣습니다. 멀티플레이·리플레이에서는 기존 동작 그대로입니다.
+- 의도 가로채기: 기본 공격 경로(`ClientGameRunner.inputEvent`의 지상 공격과 `sendBoatAttackIntent`)와 레이디얼 메뉴 경로(`PlayerActionHandler.handleAttack`/`handleBoatAttack`) 모두 `uiState.paused`이 `uiState.paused`(GameRenderer가 `PauseGameIntentEvent`로 유지)이고 싱글 플레이·리플레이 아님·스폰 이후일 때, 의도를 보내는 대신 `QueuePlanOrderEvent`로 큐에 넣습니다. 멀티플레이·리플레이에서는 기존 동작 그대로입니다.
 - `src/client/hud/layers/WarPlanPanel.ts`: 사이드바의 조준경 버튼(대기 작전 수 배지)으로 여는 작전판. 일시정지 버튼/단축키로 명시적으로 멈출 때도 자동으로 열립니다(설정 모달의 자동 일시정지는 열지 않음). 각 행에서 비율 −/+·순서 ↑↓·삭제, 하단에 완료 항목 정리와 전체 삭제가 있습니다.
 - 실행: 재개(`PauseGameIntentEvent(false)`, 어떤 경로로 풀든)하면 200ms 틱마다 한 작전씩 위에서부터 발송합니다. 병력 수는 저장하지 않고 발송 시점의 생병력 × 비율로 다시 계산해, 앞 작전이 쓴 병력을 뒤 작전이 중복 사용하지 않습니다(엔진도 `min(보유, 요청)`으로 상한을 다시 칩니다).
 - 무효 처리: 발송 직전에 대상 소멸·동맹 전환·병력 부족(<1)·수송선 출발 해안 없음을 검사해 이유를 표시하고 건너뜁니다. 엔진의 우호 대상 거부와 이중 방어가 됩니다.
