@@ -756,8 +756,13 @@ class Client {
       }
       const isAdFree =
         userMeResponse !== false && userMeResponse.player?.adfree === true;
+      // Hegemony: the solo static build ships without ads — never load
+      // Admiral or any ad payload.
       window.adsEnabled =
-        !isAdFree && !gamePortal.isOnGamePortal() && !isDesktopShell();
+        !isAdFree &&
+        !gamePortal.isOnGamePortal() &&
+        !isDesktopShell() &&
+        !ClientEnv.soloStatic();
       // Ad-eligible users only: paid/adfree users must never load Admiral (its
       // adblock popup fires autonomously once the payload runs). Start watching
       // adblock state; once a blocker is ever detected the in-game ad is

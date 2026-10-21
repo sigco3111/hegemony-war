@@ -2414,6 +2414,9 @@ export async function fetchTribeLeaderboard(): Promise<
 }
 
 export async function getNews(): Promise<NewsItem[]> {
+  // Hegemony: the bundled fallback is the news on the solo static build;
+  // never fetch it over the network.
+  if (ClientEnv.soloStatic()) return newsItemsFallback as NewsItem[];
   try {
     const res = await fetch(`${getApiBase()}/news.json`, {
       headers: { Accept: "application/json" },

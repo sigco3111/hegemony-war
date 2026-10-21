@@ -554,6 +554,9 @@ export function setServerListInGame(value: boolean): void {
  * still routes.
  */
 export async function ensureServerList(): Promise<ServerListStatus> {
+  // Hegemony: the solo static build has no fleet — the page's own values
+  // are the whole answer, so never fetch /cluster.json.
+  if (ClientEnv.soloStatic()) return apply();
   try {
     if (cached === null) {
       // Join the attempt in flight (the page-load one, usually); otherwise
