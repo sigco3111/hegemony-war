@@ -29,8 +29,16 @@ import {
 /** Runtime settings for the rear-defense delegation, set by player intent. */
 export interface DefenseDelegationSettings {
   enabled: boolean;
-  /** Share of the current treasury (0-90) the delegate must always keep. */
+  /** Share of the anchor treasury (0-90) the delegate must always keep. */
   reservePercent: number;
+  /**
+   * Treasury captured when the delegation switched from off to on. The
+   * reserve floor is reservePercent of THIS anchor, not of the current
+   * balance, so consecutive builds cannot ratchet the floor down. Toggling
+   * off and on again re-anchors; changing reservePercent while on keeps the
+   * same anchor and just recomputes the floor from it.
+   */
+  anchorGold: Gold;
 }
 
 /** Structures the delegated defender wants under SAM cover (same as nations). */
@@ -55,8 +63,8 @@ const SAM_SAMPLE_ATTEMPTS = 150;
  * defensive structures for them using the same placement rules the nation AI
  * uses (DefensePostPlacement). It only ever issues ConstructionExecution for
  * DefensePost and SAMLauncher — never attacks, boats, nukes, or diplomacy —
- * and it never spends gold that would drop the treasury below the configured
- * reserve share.
+ * and it never spends gold that would drop the treasury below the reserve
+ * floor (reservePercent of the anchor treasury captured at toggle-on).
  */
 export class DefenseDelegationBehavior {
   constructor(
@@ -83,14 +91,19 @@ export class DefenseDelegationBehavior {
     return this.game.unitInfo(type).cost(this.game, this.player);
   }
 
-  /** True when building `type` keeps at least reservePercent of the treasury. */
+  /**
+   * True when building `type` keeps at least reservePercent of the ANCHOR
+   * treasury. When attacks or manual spending already dropped the balance
+   * below the floor, the delegate holds until income lifts it back.
+   */
   private withinBudget(
     settings: DefenseDelegationSettings,
     type: UnitType,
   ): boolean {
     const gold = this.player.gold();
     const cost = this.cost(type);
-    const reserve = (gold * BigInt(settings.reservePercent)) / 100n;
+    const reserve =
+      (settings.anchorGold * BigInt(settings.reservePercent)) / 100n;
     return gold - cost >= reserve;
   }
 

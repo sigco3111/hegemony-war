@@ -39,6 +39,11 @@ export class DefenseDelegationExecution implements Execution {
   private lastBuildTick = -BUILD_GAP_TICKS;
   private behavior: DefenseDelegationBehavior | null = null;
   private random: PseudoRandom | null = null;
+  /**
+   * Treasury at the off→on transition; the reserve floor is computed from
+   * this fixed anchor. Serialized as a decimal string (snapshots are JSON).
+   */
+  private anchorGold: bigint = 0n;
 
   constructor(
     public player: Player,
@@ -55,13 +60,18 @@ export class DefenseDelegationExecution implements Execution {
   }
 
   init(mg: Game, ticks: number): void {
-    // Latest intent wins: retire any older delegation for this player.
+    // Latest intent wins: retire any older delegation for this player. A
+    // settings change while ON (a new enabled execution replacing an enabled
+    // one) inherits the anchor so the reserve basis does not reset; only an
+    // off→on transition re-anchors to the current treasury.
+    let inherited: bigint | null = null;
     for (const e of mg.executions()) {
       if (
         e instanceof DefenseDelegationExecution &&
         e !== this &&
         e.player === this.player
       ) {
+        if (e.enabled && this.enabled) inherited = e.anchorGold;
         e.deactivate();
       }
     }
@@ -70,6 +80,7 @@ export class DefenseDelegationExecution implements Execution {
       this.active = false;
       return;
     }
+    this.anchorGold = inherited ?? this.player.gold();
     this.random = new PseudoRandom(simpleHash(this.player.id()));
     this.behavior = new DefenseDelegationBehavior(this.random, mg, this.player);
   }
@@ -87,6 +98,7 @@ export class DefenseDelegationExecution implements Execution {
     const settings: DefenseDelegationSettings = {
       enabled: this.enabled,
       reservePercent: this.reservePercent,
+      anchorGold: this.anchorGold,
     };
     if (this.behavior?.tryBuild(settings)) {
       this.lastBuildTick = ticks;
@@ -98,6 +110,7 @@ export class DefenseDelegationExecution implements Execution {
       player: w.player(this.player),
       enabled: this.enabled,
       reservePercent: this.reservePercent,
+      anchorGold: this.anchorGold.toString(),
       lastBuildTick: this.lastBuildTick,
       random: w.random(this.random!),
     });
@@ -107,6 +120,7 @@ export class DefenseDelegationExecution implements Execution {
     this.player = r.player(s.player);
     this.enabled = s.enabled;
     this.reservePercent = s.reservePercent;
+    this.anchorGold = BigInt(s.anchorGold ?? "0");
     this.lastBuildTick = s.lastBuildTick;
     this.random = r.random(s.random);
     this.behavior = new DefenseDelegationBehavior(
@@ -122,6 +136,8 @@ const DefenseDelegationStateSchema = z.object({
   player: zPlayerRef(),
   enabled: z.boolean(),
   reservePercent: zInt(),
+  // Decimal string; optional so pre-anchor snapshots still restore.
+  anchorGold: z.string().optional(),
   lastBuildTick: zInt(),
   random: zRandom(),
 });

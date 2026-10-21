@@ -43,6 +43,13 @@ export class DelegationPanel extends LitElement implements Controller {
   @state() private reservePercent = 50;
   @state() private actions: DelegationAction[] = [];
   @state() private totalSpent = 0;
+  /**
+   * Treasury when the delegation was switched on; mirrors the engine anchor.
+   * The reserve floor is reservePercent of this fixed amount, so consecutive
+   * builds cannot ratchet it down. Reset only on off→on; a reservePercent
+   * change while on keeps the anchor.
+   */
+  @state() private anchorGold: bigint | null = null;
 
   createRenderRoot() {
     return this;
@@ -84,8 +91,20 @@ export class DelegationPanel extends LitElement implements Controller {
   }
 
   private setEnabled(on: boolean): void {
+    if (on && !this.enabled) {
+      // Off→on: re-anchor the reserve basis to the current treasury.
+      this.anchorGold = this.game.myPlayer()?.gold() ?? null;
+    }
+    if (!on) {
+      this.anchorGold = null;
+    }
     this.enabled = on;
     this.eventBus.emit(new SetDefenseDelegationEvent(on, this.reservePercent));
+  }
+
+  private reserveFloor(): bigint | null {
+    if (this.anchorGold === null) return null;
+    return (this.anchorGold * BigInt(this.reservePercent)) / 100n;
   }
 
   private setReserve(pct: number): void {
@@ -214,6 +233,16 @@ export class DelegationPanel extends LitElement implements Controller {
                   pct: this.reservePercent,
                 })}
               </p>
+              ${this.enabled && this.reserveFloor() !== null
+                ? html`<p class="text-xs text-amber-300/90 mt-1 tabular-nums">
+                    ${translateText("delegation_panel.reserve_floor", {
+                      amount: this.reserveFloor()!.toLocaleString(),
+                    })}
+                  </p>
+                  <p class="text-xs text-white/40 mt-1">
+                    ${translateText("delegation_panel.reserve_reset_hint")}
+                  </p>`
+                : nothing}
             </section>
             ${this.renderHistory()}
           </div>

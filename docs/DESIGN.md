@@ -93,10 +93,10 @@ OpenFrontIO를 싱글플레이 중심으로 개선한 포크입니다. 서버 �
 - 의도 흐름: 패널이 `SetDefenseDelegationEvent`를 보내면 Transport가 `set_defense_delegation` 의도(enabled, reservePercent 0–90)로 전달하고, ExecutionManager가 `DefenseDelegationExecution`을 만듭니다. 최신 의도가 같은 플레이어의 기존 실행을 대체하고, 끄기 의도는 실행을 남기지 않습니다. 건설 사이 최소 간격은 50틱(5초)입니다.
   - 주의: GameImpl은 다른 execution의 init() 안에서 추가된 execution을 유실하므로, 제어/작업을 나누지 않고 단일 자기교체 실행으로 구현했습니다.
 - `DefenseDelegationBehavior`(packages/engine/src/execution/nation/): 반응형 방어 포대(공격 전선 뒤) → 예방형 방어 포대(적대적이고 충분히 강한 이웃 국경) → SAM 커버(핵이 활성화된 게임에서 도시·공장·사일로·항만 보호) 순으로 한 번에 하나씩만 짓습니다. 배치 규칙은 국가 AI와 같은 코드(`DefensePostPlacement`로 추출 공유)를 쓰되, 위임은 보조 기능이므로 난이도 게이트는 적용하지 않습니다.
-- 자원 한도: 건설 비용을 내고도 현재 금고의 예비 비율이 남을 때만 짓습니다. 한도 때문에 못 짓는 동안은 아무것도 하지 않고 대기합니다.
+- 자원 한도: 위임을 켠 시점의 금고를 기준(anchor)으로 삼아, 그 기준의 예비 비율만큼은 항상 남을 때만 짓습니다. 연속 건설로 기준이 내려가지 않고, 공격이나 직접 지출로 잔고가 예비금 아래로 내려가면 지출을 멈췄다가 수입으로 회복되면 다시 짓습니다. 끄고 다시 켜면 기준이 그때의 금고로 재설정되고, 켜진 상태에서 비율만 바꾸면 같은 기준에서 다시 계산합니다. 패널에 실제 예비금 액수와 재설정 시점을 표시합니다.
 - 범위 제한: 위임은 방어 포대와 SAM 발사대의 ConstructionExecution만 발행합니다. 공격·병력 이동·외교·핵·경제 시설(도시/공장/항만/사일로)은 지시하지 않습니다.
 - 행동 기록: 건설 지시 순간 엔진이 `GameUpdateType.DelegationNote`(시설·타일·비용)를 내보내고, 위임 패널이 이를 누적해 시간(`formatRecordDuration`)과 비용과 함께 보여줍니다.
-- 테스트: `tests/DefenseDelegation.test.ts`가 엔진 틱 루프에서 반응형 건설·50틱 간격·예비 금고 하한·끄기/켜기·무위협 대기·SAM 상한(도시당 0.25)을 검증합니다.
+- 테스트: `tests/DefenseDelegation.test.ts`가 엔진 틱 루프에서 반응형 건설·50틱 간격·예비금 하한·고정 기준(연속 건설·건설비 상승 시 잔고 보호)·하한 아래 수동 지출 후 보류/수입 회복 후 재개·비율 변경 시 기준 유지와 끄기/켜기 재설정·무위협 대기·SAM 상한(도시당 0.25)을 검증합니다.
 
 ## 네트워크 차단 (soloStatic)
 

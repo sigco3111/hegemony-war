@@ -2891,11 +2891,13 @@
     "on": "Delegation on",
     "off": "Delegation off",
     "reserve": "Treasury reserve",
-    "reserve_hint": "Always keeps {pct}% of the treasury untouched",
+    "reserve_hint": "Always keeps {pct}% of the treasury captured when delegation was switched on",
     "spent": "Total delegated spending",
     "history": "Action history",
     "history_empty": "Nothing built by the delegate yet",
     "built_post": "Built a defense post",
-    "built_sam": "Built a SAM launcher"
+    "built_sam": "Built a SAM launcher",
+    "reserve_floor": "Current reserve: {amount} (anchored at switch-on)",
+    "reserve_reset_hint": "Switching off and on again re-anchors the reserve to the treasury at that moment. Changing the percent recomputes from the same anchor."
   }
 }

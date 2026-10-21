@@ -118,10 +118,10 @@ describe("DefenseDelegation (engine tick loop, deployed wiring)", () => {
     }
   });
 
-  it("never spends below the configured reserve share of the treasury", async () => {
+  it("never spends below the reserve floor anchored at switch-on", async () => {
     const { game, player, enemy } = await setupDelegation();
-    // Gold exactly equal to the post cost: with a 50% reserve, building
-    // would leave 0 < 50% of the treasury, so the delegate must hold.
+    // Gold exactly equal to the post cost: anchored 50% reserve means the
+    // floor is cost/2 and building would leave 0 below it, so hold.
     const cost = game.unitInfo(UnitType.DefensePost).cost(game, player);
     player.addGold(cost - player.gold());
     game.addExecution(new DefenseDelegationExecution(player, true, 50));
@@ -130,6 +130,83 @@ describe("DefenseDelegation (engine tick loop, deployed wiring)", () => {
     const { notes } = tickCollecting(game, 120);
     expect(notes).toHaveLength(0);
     expect(player.units(UnitType.DefensePost)).toHaveLength(0);
+  });
+
+  it("anchor is fixed at switch-on: consecutive builds stop at the original floor, not a ratcheting one", async () => {
+    const { game, player, enemy } = await setupDelegation();
+    const cost = game.unitInfo(UnitType.DefensePost).cost(game, player);
+    // Anchor at 4x cost, 50% reserve → floor 2x cost. With a current-balance
+    // percentage the floor would ratchet down (4c→3c→2.5c→…) allowing ~2 more
+    // builds; with the anchor, spending must stop at 2 builds (8c→6c→4c… no:
+    // 4c anchor, floor 2c: build1 leaves 3c ≥ 2c ok; build2 would leave 2c-c…
+    // build1: 4c-c=3c ≥ 2c ok; build2: 3c-c=2c ≥ 2c ok; build3: 2c-c=c < 2c stop).
+    player.addGold(4n * cost - player.gold());
+    game.addExecution(new DefenseDelegationExecution(player, true, 50));
+    // Keep the threat alive so the delegate keeps wanting posts.
+    for (let i = 0; i < MAX_TICKS; i++) {
+      if (i % 40 === 0) {
+        game.addExecution(new AttackExecution(40_000, enemy, player.id()));
+      }
+      game.executeNextTick();
+    }
+    expect(player.gold()).toBeGreaterThanOrEqual(2n * cost);
+  });
+
+  it("holds when manual spending dropped the balance below the floor, resumes after income", async () => {
+    const { game, player, enemy } = await setupDelegation();
+    const cost = game.unitInfo(UnitType.DefensePost).cost(game, player);
+    player.addGold(4n * cost - player.gold()); // anchor 4c, floor 2c
+    game.addExecution(new DefenseDelegationExecution(player, true, 50));
+    // Simulate a big manual spend (e.g. the player launched something).
+    player.removeGold(3n * cost); // balance now 1c < floor 2c
+    game.addExecution(new AttackExecution(50_000, enemy, player.id()));
+    expect(tickCollecting(game, 100).notes).toHaveLength(0);
+
+    // Income lifts the balance above floor + cost: building resumes.
+    player.addGold(3n * cost); // balance 4c
+    const { notes } = tickCollecting(game, MAX_TICKS, (n) => n.length > 0);
+    expect(notes.length).toBeGreaterThan(0);
+  });
+
+  it("re-anchors on off→on but keeps the anchor across a percent change while on", async () => {
+    const { game, player, enemy } = await setupDelegation();
+    const cost = game.unitInfo(UnitType.DefensePost).cost(game, player);
+    player.addGold(10n * cost - player.gold());
+    game.addExecution(new DefenseDelegationExecution(player, true, 50));
+
+    // Percent change while on: new execution replaces the old one but must
+    // keep the 10c anchor → 90% reserve floor is 9c, so with balance 10c a
+    // 1c build holds (10c-c=9c ≥ 9c ok, barely). Then drop balance below.
+    game.addExecution(new DefenseDelegationExecution(player, true, 90));
+    player.removeGold(cost); // balance 9c: 9c-c=8c < 9c floor → hold
+    game.addExecution(new AttackExecution(50_000, enemy, player.id()));
+    expect(tickCollecting(game, 100).notes).toHaveLength(0);
+
+    // Off→on re-anchors to the current 9c: 90% floor is now 8.1c, so
+    // 9c-c=8c < 8.1c still holds; use 10% instead → floor 0.9c, builds.
+    game.addExecution(new DefenseDelegationExecution(player, false, 90));
+    game.executeNextTick();
+    game.addExecution(new DefenseDelegationExecution(player, true, 10));
+    const { notes } = tickCollecting(game, MAX_TICKS, (n) => n.length > 0);
+    expect(notes.length).toBeGreaterThan(0);
+  });
+
+  it("respects the anchored floor as construction costs rise", async () => {
+    const { game, player, enemy } = await setupDelegation();
+    const cost = game.unitInfo(UnitType.DefensePost).cost(game, player);
+    // Anchor 4c with 50% floor 2c. After two builds the balance is 2c; even
+    // if a later quote came back cheaper the delegate must not dip under 2c.
+    player.addGold(4n * cost - player.gold());
+    game.addExecution(new DefenseDelegationExecution(player, true, 50));
+    let minGold = player.gold();
+    for (let i = 0; i < MAX_TICKS; i++) {
+      if (i % 40 === 0) {
+        game.addExecution(new AttackExecution(40_000, enemy, player.id()));
+      }
+      game.executeNextTick();
+      if (player.gold() < minGold) minGold = player.gold();
+    }
+    expect(minGold).toBeGreaterThanOrEqual(2n * cost);
   });
 
   it("stays idle while disabled, and the control intent creates and updates the worker", async () => {
