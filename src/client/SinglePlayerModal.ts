@@ -462,7 +462,10 @@ export class SinglePlayerModal extends BaseModal {
     const data = loadRecords();
     const summary = recordsSummary();
     return html`
-      <div class="px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
+      <div class="flex flex-col h-full">
+      <div
+        class="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-3 pt-4 pb-6 mr-1 mx-auto w-full max-w-5xl sm:px-6"
+      >
         <div
           class="mb-4 px-4 py-3 rounded-xl border border-sky-500/20 bg-sky-500/5 text-sm text-white/80 text-center"
         >
@@ -516,6 +519,7 @@ export class SinglePlayerModal extends BaseModal {
                 `,
               )}
             </div>`}
+      </div>
       </div>
     `;
   }
