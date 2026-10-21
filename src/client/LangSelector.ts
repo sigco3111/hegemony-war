@@ -160,8 +160,12 @@ export class LangSelector extends LitElement {
     }
 
     try {
+      // "no-cache": lang JSON is served unhashed, so a heuristic disk cache
+      // would otherwise keep a pre-deploy copy for hours and new keys (added
+      // by any update) would silently fall back to English.
       const response = await fetch(
         assetUrl(`lang/${encodeURIComponent(lang)}.json`),
+        { cache: "no-cache" },
       );
       if (!response.ok) {
         throw new Error(`Failed to fetch language ${lang}: ${response.status}`);
