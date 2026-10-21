@@ -692,6 +692,25 @@
     "title": "Support a Creator",
     "unsupport": "Unsupport"
   },
+  "delegation_panel": {
+    "built_post": "Built a defense post",
+    "built_sam": "Built a SAM launcher",
+    "desc": "When on, the AI automatically builds defense posts and SAM launchers to guard your rear. Attacks and diplomacy stay under your command.",
+    "heading": "Rear defense delegation",
+    "history": "Action history",
+    "history_empty": "Nothing built by the delegate yet",
+    "off": "Delegation off",
+    "on": "Delegation on",
+    "reserve": "Treasury reserve",
+    "reserve_floor": "Current reserve: {amount} (anchored at switch-on)",
+    "reserve_hint": "Always keeps {pct}% of the treasury captured when delegation was switched on",
+    "reserve_reset_hint": "Switching off and on again re-anchors the reserve to the treasury at that moment. Changing the percent recomputes from the same anchor.",
+    "spent": "Total delegated spending",
+    "status_hold": "Holding to protect the reserve. Building resumes once your treasury recovers.",
+    "status_threat": "Enemy attack detected. Preparing a defense post.",
+    "status_watch": "Watching for threats. Defenses are built automatically when attacked.",
+    "title": "Delegate"
+  },
   "desktop_gate": {
     "back_to_game": "Back to Game",
     "browser_fallback": "Couldn't open your browser automatically — use the link above.",
@@ -2883,21 +2902,5 @@
     "waiting_reply": "Awaiting reply",
     "allies_of": "Allies: {list}",
     "disabled": "Alliances are disabled in this game"
-  },
-  "delegation_panel": {
-    "title": "Delegate",
-    "heading": "Rear defense delegation",
-    "desc": "When on, the AI automatically builds defense posts and SAM launchers to guard your rear. Attacks and diplomacy stay under your command.",
-    "on": "Delegation on",
-    "off": "Delegation off",
-    "reserve": "Treasury reserve",
-    "reserve_hint": "Always keeps {pct}% of the treasury captured when delegation was switched on",
-    "spent": "Total delegated spending",
-    "history": "Action history",
-    "history_empty": "Nothing built by the delegate yet",
-    "built_post": "Built a defense post",
-    "built_sam": "Built a SAM launcher",
-    "reserve_floor": "Current reserve: {amount} (anchored at switch-on)",
-    "reserve_reset_hint": "Switching off and on again re-anchors the reserve to the treasury at that moment. Changing the percent recomputes from the same anchor."
   }
 }

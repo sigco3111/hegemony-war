@@ -50,6 +50,12 @@ export class DelegationPanel extends LitElement implements Controller {
    * change while on keeps the anchor.
    */
   @state() private anchorGold: bigint | null = null;
+  /** Why the delegate is idle right now; null while disabled. */
+  @state() private status: "hold" | "threat" | "watch" | null = null;
+  /** Last known defense-post cost (escalates per post owned). */
+  private postCost: bigint | null = null;
+  private costRefreshTick = -1000;
+  private costFetchInFlight = false;
 
   createRenderRoot() {
     return this;
@@ -76,18 +82,79 @@ export class DelegationPanel extends LitElement implements Controller {
     if (!this.isSolo()) return;
     if (this.game.inSpawnPhase()) return;
     const updates = this.game.updatesSinceLastTick();
-    if (updates === null) return;
-    const notes = (updates[GameUpdateType.DelegationNote] ??
+    const notes = (updates?.[GameUpdateType.DelegationNote] ??
       []) as DelegationNoteUpdate[];
-    if (notes.length === 0) return;
-    const t = this.game.ticks();
-    const fresh: DelegationAction[] = notes.map((n) => ({
-      tick: t,
-      unit: n.unit,
-      cost: n.cost,
-    }));
-    for (const f of fresh) this.totalSpent += f.cost;
-    this.actions = [...fresh, ...this.actions].slice(0, MAX_HISTORY);
+    if (notes.length > 0) {
+      const t = this.game.ticks();
+      const fresh: DelegationAction[] = notes.map((n) => ({
+        tick: t,
+        unit: n.unit,
+        cost: n.cost,
+      }));
+      for (const f of fresh) this.totalSpent += f.cost;
+      this.actions = [...fresh, ...this.actions].slice(0, MAX_HISTORY);
+    }
+    void this.refreshStatus();
+  }
+
+  /** Engine mirror: UNDER_ATTACK_THREAT_RATIO in DefensePostPlacement. */
+  private static readonly REACTIVE_THREAT_RATIO = 0.35;
+
+  /**
+   * Keeps `status` truthful so an empty history is never misread as a
+   * broken delegation: "hold" when every build would break the reserve
+   * floor, "threat" when an incoming attack crosses the engine's build
+   * ratio, "watch" otherwise. Placement itself is engine-side, so a
+   * "threat" status can persist while the engine searches for a tile.
+   */
+  private async refreshStatus(): Promise<void> {
+    const me = this.game.myPlayer();
+    if (
+      !this.enabled ||
+      this.anchorGold === null ||
+      me === null ||
+      me === undefined ||
+      !me.isAlive()
+    ) {
+      if (this.status !== null) this.status = null;
+      return;
+    }
+    const tick = this.game.ticks();
+    if (tick - this.costRefreshTick >= 50 && !this.costFetchInFlight) {
+      this.costFetchInFlight = true;
+      this.costRefreshTick = tick;
+      try {
+        const list = await me.buildables(undefined, [UnitType.DefensePost]);
+        this.postCost =
+          list.find((b) => b.type === UnitType.DefensePost)?.cost ?? null;
+      } catch {
+        // Keep the last known cost.
+      } finally {
+        this.costFetchInFlight = false;
+      }
+    }
+    const floor = this.reserveFloor();
+    const gold = me.gold();
+    if (
+      floor !== null &&
+      this.postCost !== null &&
+      gold - this.postCost < floor
+    ) {
+      this.status = "hold";
+      return;
+    }
+    const incoming = me
+      .incomingAttacks()
+      .reduce((sum, a) => sum + a.troops, 0);
+    const troops = me.troops();
+    if (
+      troops > 0 &&
+      incoming / troops >= DelegationPanel.REACTIVE_THREAT_RATIO
+    ) {
+      this.status = "threat";
+      return;
+    }
+    this.status = "watch";
   }
 
   private setEnabled(on: boolean): void {
@@ -208,6 +275,15 @@ export class DelegationPanel extends LitElement implements Controller {
                   ? translateText("delegation_panel.on")
                   : translateText("delegation_panel.off")}
               </button>
+              ${this.enabled && this.status !== null
+                ? html`<p
+                    class="mt-2 text-xs ${this.status === "hold"
+                      ? "text-amber-300/90"
+                      : "text-white/55"}"
+                  >
+                    ${translateText(`delegation_panel.status_${this.status}`)}
+                  </p>`
+                : nothing}
             </section>
             <section>
               <h3 class="text-xs font-bold text-white/60 uppercase mb-2">
