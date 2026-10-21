@@ -85,6 +85,19 @@ OpenFrontIO를 싱글플레이 중심으로 개선한 포크입니다. 서버 �
   - `betray_juiciest`·`betray_weak`·`betray_traitor`·`betray_lonely`는 원작 배신 분기의 이유 표기입니다.
   - 동맹 수락 판단은 `decideAlliance`가 어떤 분기가 결정했는지 함께 반환해, 견제가 실제 결정 사유일 때만 표기합니다.
 
+## 개선 6 — 후방 방어 위임
+
+플레이어가 후방 방어만 AI에 맡길 수 있습니다. 공격과 외교는 계속 직접 지휘합니다.
+
+- `src/client/hud/layers/DelegationPanel.ts`: 싱글 게임 왼쪽 사이드바의 방패 버튼으로 여는 위임 패널입니다. 켜기/끄기, 예비 금고 비율(25/50/75%, 기본 50%), 행동 기록(시간·시설·비용, 최신순 최대 50건)과 총 위임 지출을 보여줍니다.
+- 의도 흐름: 패널이 `SetDefenseDelegationEvent`를 보내면 Transport가 `set_defense_delegation` 의도(enabled, reservePercent 0–90)로 전달하고, ExecutionManager가 `DefenseDelegationExecution`을 만듭니다. 최신 의도가 같은 플레이어의 기존 실행을 대체하고, 끄기 의도는 실행을 남기지 않습니다. 건설 사이 최소 간격은 50틱(5초)입니다.
+  - 주의: GameImpl은 다른 execution의 init() 안에서 추가된 execution을 유실하므로, 제어/작업을 나누지 않고 단일 자기교체 실행으로 구현했습니다.
+- `DefenseDelegationBehavior`(packages/engine/src/execution/nation/): 반응형 방어 포대(공격 전선 뒤) → 예방형 방어 포대(적대적이고 충분히 강한 이웃 국경) → SAM 커버(핵이 활성화된 게임에서 도시·공장·사일로·항만 보호) 순으로 한 번에 하나씩만 짓습니다. 배치 규칙은 국가 AI와 같은 코드(`DefensePostPlacement`로 추출 공유)를 쓰되, 위임은 보조 기능이므로 난이도 게이트는 적용하지 않습니다.
+- 자원 한도: 건설 비용을 내고도 현재 금고의 예비 비율이 남을 때만 짓습니다. 한도 때문에 못 짓는 동안은 아무것도 하지 않고 대기합니다.
+- 범위 제한: 위임은 방어 포대와 SAM 발사대의 ConstructionExecution만 발행합니다. 공격·병력 이동·외교·핵·경제 시설(도시/공장/항만/사일로)은 지시하지 않습니다.
+- 행동 기록: 건설 지시 순간 엔진이 `GameUpdateType.DelegationNote`(시설·타일·비용)를 내보내고, 위임 패널이 이를 누적해 시간(`formatRecordDuration`)과 비용과 함께 보여줍니다.
+- 테스트: `tests/DefenseDelegation.test.ts`가 엔진 틱 루프에서 반응형 건설·50틱 간격·예비 금고 하한·끄기/켜기·무위협 대기·SAM 상한(도시당 0.25)을 검증합니다.
+
 ## 네트워크 차단 (soloStatic)
 
 정적 배포에서는 외부 서버가 없으므로, 서버 의존 경로를 소스에서 차단합니다. `ClientEnv.soloStatic()`(PAGES_BASE 설정 빌드에서 참)을 게이트로 씁니다.

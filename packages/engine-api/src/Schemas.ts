@@ -46,6 +46,7 @@ export type Intent =
   | KickPlayerIntent
   | TogglePauseIntent
   | UpdateGameConfigIntent
+  | SetDefenseDelegationIntent
   | ToggleGameStartTimer;
 
 export type AttackIntent = z.infer<typeof AttackIntentSchema>;
@@ -54,6 +55,9 @@ export type SpawnIntent = z.infer<typeof SpawnIntentSchema>;
 export type BoatAttackIntent = z.infer<typeof BoatAttackIntentSchema>;
 export type EmbargoAllIntent = z.infer<typeof EmbargoAllIntentSchema>;
 export type CancelBoatIntent = z.infer<typeof CancelBoatIntentSchema>;
+export type SetDefenseDelegationIntent = z.infer<
+  typeof SetDefenseDelegationIntentSchema
+>;
 export type AllianceRequestIntent = z.infer<typeof AllianceRequestIntentSchema>;
 export type AllianceRejectIntent = z.infer<typeof AllianceRejectIntentSchema>;
 export type BreakAllianceIntent = z.infer<typeof BreakAllianceIntentSchema>;
@@ -561,6 +565,14 @@ export const ToggleGameStartTimerIntentSchema = z.object({
   type: z.literal("toggle_game_start_timer"),
 });
 
+// 개선6 rear-defense delegation: toggle the AI-managed rear defense and set
+// the share of the treasury it must always leave untouched.
+export const SetDefenseDelegationIntentSchema = z.object({
+  type: z.literal("set_defense_delegation"),
+  enabled: z.boolean(),
+  reservePercent: zb.uint({ max: 90 }),
+});
+
 export const IntentSchema = z.discriminatedUnion("type", [
   AttackIntentSchema,
   CancelAttackIntentSchema,
@@ -586,6 +598,7 @@ export const IntentSchema = z.discriminatedUnion("type", [
   KickPlayerIntentSchema,
   TogglePauseIntentSchema,
   UpdateGameConfigIntentSchema,
+  SetDefenseDelegationIntentSchema,
   ToggleGameStartTimerIntentSchema,
 ]);
 

@@ -2539,5 +2539,19 @@
     "waiting_reply": "응답 대기 중",
     "allies_of": "동맹: {list}",
     "disabled": "이 게임은 동맹이 꺼져 있습니다"
+  },
+  "delegation_panel": {
+    "title": "위임",
+    "heading": "후방 방어 위임",
+    "desc": "켜두면 AI가 방어 포대와 SAM 발사대를 자동으로 지어 후방을 지킵니다. 공격과 외교는 직접 지휘합니다.",
+    "on": "위임 켜짐",
+    "off": "위임 꺼짐",
+    "reserve": "예비 금고",
+    "reserve_hint": "금고의 {pct}%는 항상 남겨둡니다",
+    "spent": "위임 지출 합계",
+    "history": "행동 기록",
+    "history_empty": "아직 위임이 지은 시설이 없습니다",
+    "built_post": "방어 포대 건설",
+    "built_sam": "SAM 발사대 건설"
   }
 }

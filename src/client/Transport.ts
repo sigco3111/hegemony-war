@@ -66,6 +66,15 @@ export class PauseGameIntentEvent implements GameEvent {
   constructor(public readonly paused: boolean) {}
 }
 
+// 개선6: toggle the AI-managed rear-defense delegation and its treasury
+// reserve share (0-90). Sent from the delegation panel.
+export class SetDefenseDelegationEvent implements GameEvent {
+  constructor(
+    public readonly enabled: boolean,
+    public readonly reservePercent: number,
+  ) {}
+}
+
 export class SendAllianceRequestIntentEvent implements GameEvent {
   constructor(
     public readonly requestor: PlayerView,
@@ -333,6 +342,9 @@ export class Transport {
     this.subscribe(BuildUnitIntentEvent, (e) => this.onBuildUnitIntent(e));
 
     this.subscribe(PauseGameIntentEvent, (e) => this.onPauseGameIntent(e));
+    this.subscribe(SetDefenseDelegationEvent, (e) =>
+      this.onSetDefenseDelegation(e),
+    );
     this.subscribe(SendWinnerEvent, (e) => this.onSendWinnerEvent(e));
     this.subscribe(SendLiveStatsEvent, (e) => this.onSendLiveStatsEvent(e));
     this.subscribe(SendPlayerReportEvent, (e) =>
@@ -900,6 +912,14 @@ export class Transport {
     this.sendIntent({
       type: "toggle_pause",
       paused: event.paused,
+    });
+  }
+
+  private onSetDefenseDelegation(event: SetDefenseDelegationEvent) {
+    this.sendIntent({
+      type: "set_defense_delegation",
+      enabled: event.enabled,
+      reservePercent: event.reservePercent,
     });
   }
 

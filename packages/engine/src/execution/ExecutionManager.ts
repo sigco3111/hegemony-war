@@ -14,6 +14,7 @@ import { BreakAllianceExecution } from "./alliance/BreakAllianceExecution";
 import { AttackExecution } from "./AttackExecution";
 import { BoatRetreatExecution } from "./BoatRetreatExecution";
 import { ConstructionExecution } from "./ConstructionExecution";
+import { DefenseDelegationExecution } from "./DefenseDelegationExecution";
 import { DeleteUnitExecution } from "./DeleteUnitExecution";
 import { DonateGoldExecution } from "./DonateGoldExecution";
 import { DonateTroopsExecution } from "./DonateTroopExecution";
@@ -144,6 +145,12 @@ export class Executor {
         return new MarkDisconnectedExecution(player, intent.isDisconnected);
       case "toggle_pause":
         return new PauseExecution(player, intent.paused);
+      case "set_defense_delegation":
+        return new DefenseDelegationExecution(
+          player,
+          intent.enabled,
+          intent.reservePercent,
+        );
       default:
         throw new Error(`intent type ${intent} not found`);
     }

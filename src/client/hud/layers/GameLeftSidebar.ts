@@ -14,6 +14,7 @@ import { themeProvider } from "../../theme/ThemeProvider";
 import { getTranslatedPlayerTeamLabel, translateText } from "../../Utils";
 import type { GameView } from "../../view";
 import { ImmunityBarVisibleEvent } from "./ImmunityTimer";
+import { ToggleDelegationPanelEvent } from "./DelegationPanel";
 import { ToggleDiplomacyBoardEvent } from "./DiplomacyBoard";
 import { ToggleWarDashboardEvent } from "./WarDashboard";
 import "./PlayerStats";
@@ -119,14 +120,23 @@ export class GameLeftSidebar extends LitElement implements Controller {
   }
 
   private toggleWarDashboard(): void {
-    // The two solo overlays stack in the same spot: never show both.
+    // The solo overlays stack in the same spot: never show two at once.
     this.eventBus?.emit(new ToggleDiplomacyBoardEvent(false));
+    this.eventBus?.emit(new ToggleDelegationPanelEvent(false));
     this.eventBus?.emit(new ToggleWarDashboardEvent());
   }
 
   private toggleDiplomacyBoard(): void {
     this.eventBus?.emit(new ToggleWarDashboardEvent(false));
+    this.eventBus?.emit(new ToggleDelegationPanelEvent(false));
     this.eventBus?.emit(new ToggleDiplomacyBoardEvent());
+  }
+
+  // Hegemony 개선6: the rear-defense delegation (위임) panel.
+  private toggleDelegationPanel(): void {
+    this.eventBus?.emit(new ToggleWarDashboardEvent(false));
+    this.eventBus?.emit(new ToggleDiplomacyBoardEvent(false));
+    this.eventBus?.emit(new ToggleDelegationPanelEvent());
   }
 
   private get isTeamGame(): boolean {
@@ -232,6 +242,47 @@ export class GameLeftSidebar extends LitElement implements Controller {
                       stroke="#fff"
                       stroke-width="1.6"
                       stroke-linecap="round"
+                    />
+                  </svg>
+                </div>
+                <div
+                  class="cursor-pointer p-0.5 bg-gray-700/50 hover:bg-gray-600 border rounded-md border-slate-500 transition-colors"
+                  @click=${this.toggleDelegationPanel}
+                  role="button"
+                  tabindex="0"
+                  title=${translateText("delegation_panel.title")}
+                  @keydown=${(e: KeyboardEvent) => {
+                    if (
+                      e.key === "Enter" ||
+                      e.key === " " ||
+                      e.code === "Space"
+                    ) {
+                      e.preventDefault();
+                      this.toggleDelegationPanel();
+                    }
+                  }}
+                >
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M10 2 3.5 4.5v5c0 4 2.7 7.2 6.5 8.5 3.8-1.3 6.5-4.5 6.5-8.5v-5L10 2Z"
+                      stroke="#fff"
+                      stroke-width="1.6"
+                      stroke-linejoin="round"
+                      fill="none"
+                    />
+                    <path
+                      d="M7 10l2 2 4-4.5"
+                      stroke="#fff"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      fill="none"
                     />
                   </svg>
                 </div>

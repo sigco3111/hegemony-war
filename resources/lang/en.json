@@ -2883,5 +2883,19 @@
     "waiting_reply": "Awaiting reply",
     "allies_of": "Allies: {list}",
     "disabled": "Alliances are disabled in this game"
+  },
+  "delegation_panel": {
+    "title": "Delegate",
+    "heading": "Rear defense delegation",
+    "desc": "When on, the AI automatically builds defense posts and SAM launchers to guard your rear. Attacks and diplomacy stay under your command.",
+    "on": "Delegation on",
+    "off": "Delegation off",
+    "reserve": "Treasury reserve",
+    "reserve_hint": "Always keeps {pct}% of the treasury untouched",
+    "spent": "Total delegated spending",
+    "history": "Action history",
+    "history_empty": "Nothing built by the delegate yet",
+    "built_post": "Built a defense post",
+    "built_sam": "Built a SAM launcher"
   }
 }

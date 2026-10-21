@@ -47,6 +47,7 @@ import { SettingsModal } from "./layers/SettingsModal";
 import { SpawnTimer } from "./layers/SpawnTimer";
 import { TutorialPanel } from "./layers/TutorialPanel";
 import { UnitDisplay } from "./layers/UnitDisplay";
+import { DelegationPanel } from "./layers/DelegationPanel";
 import { DiplomacyBoard } from "./layers/DiplomacyBoard";
 import { WarDashboard } from "./layers/WarDashboard";
 import { WinModal } from "./layers/WinModal";
@@ -207,6 +208,15 @@ export function createRenderer(
   }
   diplomacyBoard.game = game;
   diplomacyBoard.eventBus = eventBus;
+
+  const delegationPanel = document.querySelector(
+    "delegation-panel",
+  ) as DelegationPanel;
+  if (!(delegationPanel instanceof DelegationPanel)) {
+    console.error("delegation panel not found");
+  }
+  delegationPanel.game = game;
+  delegationPanel.eventBus = eventBus;
 
   const settingsModal = document.querySelector(
     "settings-modal",
@@ -377,6 +387,7 @@ export function createRenderer(
     unitDisplay,
     warDashboard,
     diplomacyBoard,
+    delegationPanel,
     gameRightSidebar,
     controlPanel,
     playerInfo,

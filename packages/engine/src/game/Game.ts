@@ -604,6 +604,8 @@ export interface Game extends GameLike {
   ): Array<{ unit: Unit; distSquared: number }>;
 
   addExecution(...exec: Execution[]): void;
+  // Live executions, e.g. for a control intent updating a persistent worker.
+  executions(): Execution[];
   displayMessage(
     message: string,
     type: MessageType,

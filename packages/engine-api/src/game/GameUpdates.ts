@@ -117,6 +117,8 @@ export enum GameUpdateType {
   DonateEvent,
   // 개선5 diplomacy board: factual reasons behind AI diplomacy decisions.
   DiplomacyNote,
+  // 개선6 rear-defense delegation: what the delegated defender built.
+  DelegationNote,
 }
 
 export type GameUpdate =
@@ -143,7 +145,8 @@ export type GameUpdate =
   | SpawnPhaseEndUpdate
   | GamePausedUpdate
   | DonateEventUpdate
-  | DiplomacyNoteUpdate;
+  | DiplomacyNoteUpdate
+  | DelegationNoteUpdate;
 
 export interface BonusEventUpdate {
   type: GameUpdateType.BonusEvent;
@@ -349,6 +352,16 @@ export interface DiplomacyNoteUpdate {
   targetID: number;
   threatID: number | null;
   reason: DiplomacyNoteReason;
+}
+
+// 개선6: the delegated rear defender (플레이어 위임 방어) issued a structure
+// construction. Emitted at the decision moment so the client delegation panel
+// can list what was built, when, and at what cost.
+export interface DelegationNoteUpdate {
+  type: GameUpdateType.DelegationNote;
+  unit: UnitType;
+  tile: TileRef;
+  cost: number;
 }
 
 export interface TargetPlayerUpdate {

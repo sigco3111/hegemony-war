@@ -82,6 +82,7 @@ export const UPDATE_TYPE_ROUTING: Record<
   GamePaused: "misc",
   DonateEvent: "misc",
   DiplomacyNote: "misc",
+  DelegationNote: "misc",
 };
 
 /**
