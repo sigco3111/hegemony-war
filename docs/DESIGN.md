@@ -103,7 +103,8 @@ OpenFrontIO를 싱글플레이 중심으로 개선한 포크입니다. 서버 �
 
 - 단위 테스트: 기록 검증, 챌린지 게이트, 견제·기회주의 외교 등 31건 (`tests/RecordsRevalidate.test.ts`, `tests/ChallengesGate.test.ts`, `tests/NationContainment.test.ts`, `tests/NationOpportunisticBetrayal.test.ts`).
 - 통제 통합 테스트: `tests/NationContainmentIntegration.test.ts`가 배포와 같은 엔진 배선(`NationExecution` → `executeNextTick`)으로 도주 선두 트리거를 결정적으로 재현합니다. 견제 연합 성립, 패자 동맹 파기, 연대기가 소비하는 업데이트(AllianceRequestReply·BrokeAlliance) 방출을 확인합니다.
-- 관찰 한계: 실제 플레이에서 견제 외교가 유기적으로 발동하는 장면은 아직 관찰되지 않았습니다 (초반 구간만 관찰). 통제 테스트 증거와 자연 플레이 관찰은 구분해서 평가해야 합니다.
+- 자연 플레이 관찰 (유럽·어려움, 사망 후 관전): AI 간 동맹 89건 자연 체결, 연대기 이유 문구 실측 — "Ukraine → Romanian Lordship 동맹 파기 — 압도적 열세 동맹 배신". 플레이어 동맹 제안 → AI 수락 → 파기(배신자 플래그) 전 사이클을 실입력으로 확인. 도주 선두 견제 연합의 자연 발동 장면은 아직 미관찰(관찰 종료 시 선두 비율 1.04배)이므로, 견제는 통제 통합 테스트 증거와 구분해서 평가합니다.
+- 후속 수정: 언어 JSON fetch에 `cache:"no-cache"`(무해시 URL이라 구 캐시가 남아 신규 문자열이 영어로 폴백하던 문제), 외교판 국가 목록을 멤버십 변경 시에만 재정렬(200ms 틱 재정렬로 버튼이 커서 아래에서 움직이던 문제). 데스크톱·모바일(390px) 실기기 렌더링 검증 완료.
 - 알려진 잔여 리스크: 기록 재검증이 백업 없이 삭제하던 이전 배포에 노출된 기기에서 기록 로테이션(200건 초과)까지 진행된 경우, 그때 삭제된 업적은 복구할 수 없습니다.
 
 ## 빌드와 배포
