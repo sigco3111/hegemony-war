@@ -12,7 +12,7 @@ OpenFrontIO의 싱글플레이 개선 포크입니다. 서버 없이 브라우�
 - **완전 오프라인 구조**: 서버 목록, 뉴스, 광고, 코스메틱, 프로모션 등 외부 요청을 소스에서 차단했습니다. 사운드는 없습니다.
 - 한국어 기본 UI, 135개 맵 전부 수록.
 
-설계 배경과 구현 상세는 [docs/DESIGN.md](docs/DESIGN.md)에 있습니다.
+설계 배경과 구현 상세는 [docs/DESIGN.md](docs/DESIGN.md)에, 원작의 원문 README는 [README.en.md](README.en.md)에 보존되어 있습니다.
 
 ## 저장소 구조
 
