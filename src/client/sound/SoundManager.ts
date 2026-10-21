@@ -2,6 +2,7 @@ import { assetUrl } from "@openfront/shared/AssetUrls";
 import { EventBus } from "@openfront/shared/EventBus";
 import { Howl } from "howler";
 import { AudioMixer, PlayableCategory, streamsMusic } from "./AudioMixer";
+import { ClientEnv } from "../ClientEnv";
 import {
   AmbienceTrack,
   ambienceUrls,
@@ -47,7 +48,8 @@ export class SoundManager {
     private readonly eventBus: EventBus,
     private readonly mixer: AudioMixer,
   ) {
-    this.buildBackgroundMusic();
+    // Hegemony: the solo static build ships no music or ambience files.
+    if (!ClientEnv.soloStatic()) this.buildBackgroundMusic();
 
     this.onPlaySoundEffect = (e) => this.mixer.play(e.effect);
     this.onSetAmbience = (e) => this.setAmbience(e.track, e.gain);
@@ -227,6 +229,7 @@ export class SoundManager {
   // ------------------------------------------------------------- ambience
 
   public setAmbience(track: AmbienceTrack | null, gain: number = 1): void {
+    if (ClientEnv.soloStatic()) return;
     // Same track, so there is nothing to cross over: the gain is the whole
     // update and the mixer's change listener retargets the running loop.
     if (track === this.currentAmbience) {

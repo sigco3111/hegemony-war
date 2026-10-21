@@ -16,7 +16,6 @@ import { PlayerCosmetics } from "@openfront/shared/WireSchemas";
 import { html, TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { translateText } from "../client/Utils";
-import { responseHasLinkedIdentity } from "./AccountIdentity";
 import "./components/baseComponents/Button";
 import "./components/baseComponents/Modal";
 import { BaseModal } from "./components/BaseModal";
@@ -45,6 +44,13 @@ import {
   toOptionalNumber,
 } from "./utilities/GameConfigHelpers";
 
+import {
+  formatRecordDuration,
+  loadRecords,
+  localMapWins,
+  RECORDS_CHANGED_EVENT,
+  recordsSummary,
+} from "./LocalRecords";
 import { terrainMapFileLoader } from "./TerrainMapFileLoader";
 
 /**
@@ -187,6 +193,8 @@ export class SinglePlayerModal extends BaseModal {
   @state() private gameMode: GameMode = DEFAULT_OPTIONS.gameMode;
   @state() private teamCount: TeamCountConfig = DEFAULT_OPTIONS.teamCount;
   @state() private showAchievements: boolean = false;
+  // Hegemony: the 기록실 (local records) panel swaps the body when on.
+  @state() private showRecords: boolean = false;
   @state() private mapWins: Map<GameMapType, Set<Difficulty>> = new Map();
   // Maps that support achievements (have nations). null until loaded — the
   // medal overview shows a placeholder total meanwhile.
@@ -231,6 +239,7 @@ export class SinglePlayerModal extends BaseModal {
       "userMeResponse",
       this.handleUserMeResponse as EventListener,
     );
+    document.addEventListener(RECORDS_CHANGED_EVENT, this.handleRecordsChanged);
     // It loads on demand (see LazyModals), usually after Main's broadcast
     // went out.
     const last = lastUserMeResponse();
@@ -246,12 +255,19 @@ export class SinglePlayerModal extends BaseModal {
       "userMeResponse",
       this.handleUserMeResponse as EventListener,
     );
+    document.removeEventListener(
+      RECORDS_CHANGED_EVENT,
+      this.handleRecordsChanged,
+    );
     super.disconnectedCallback();
   }
 
   private toggleAchievements = () => {
     this.showAchievements = !this.showAchievements;
-    if (this.showAchievements) void this.ensureEligibleMaps();
+    if (this.showAchievements) {
+      this.showRecords = false;
+      void this.ensureEligibleMaps();
+    }
   };
 
   private async ensureEligibleMaps() {
@@ -287,47 +303,22 @@ export class SinglePlayerModal extends BaseModal {
     this.applyAchievements(event.detail);
   };
 
-  private renderNotLoggedInBanner(): TemplateResult {
-    if (gamePortal.isOnGamePortal()) {
-      return html``;
-    }
-    return html`<button
-      class="px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors duration-200 rounded-lg bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 whitespace-nowrap shrink-0 cursor-pointer hover:bg-yellow-500/30"
-      @click=${() => {
-        this.close();
-        window.showPage?.("page-account");
-      }}
-    >
-      ${translateText("single_modal.sign_in_for_achievements")}
-    </button>`;
-  }
+  // Hegemony: medals live in the device-local 기록실 now; a finished game
+  // anywhere refreshes them here.
+  private handleRecordsChanged = () => {
+    this.mapWins = localMapWins();
+  };
 
-  private applyAchievements(userMe: UserMeResponse | false) {
-    if (!userMe) {
-      this.mapWins = new Map();
-      return;
-    }
+  private toggleRecords = () => {
+    this.showRecords = !this.showRecords;
+    if (this.showRecords) this.showAchievements = false;
+  };
 
-    const completions = userMe.player.achievements.singleplayerMap;
-
-    const winsMap = new Map<GameMapType, Set<Difficulty>>();
-    for (const entry of completions) {
-      const { mapName, difficulty } = entry ?? {};
-      const isValidMap =
-        typeof mapName === "string" &&
-        Object.values(GameMapType).includes(mapName as GameMapType);
-      const isValidDifficulty =
-        typeof difficulty === "string" &&
-        Object.values(Difficulty).includes(difficulty as Difficulty);
-      if (!isValidMap || !isValidDifficulty) continue;
-
-      const map = mapName as GameMapType;
-      const set = winsMap.get(map) ?? new Set<Difficulty>();
-      set.add(difficulty as Difficulty);
-      winsMap.set(map, set);
-    }
-
-    this.mapWins = winsMap;
+  // Hegemony: the account API is gone in this build; medal progress is
+  // read from the device-local records store instead. The parameter stays
+  // so the userMe listener signature is unchanged.
+  private applyAchievements(_userMe: UserMeResponse | false) {
+    this.mapWins = localMapWins();
   }
 
   protected renderHeaderSlot() {
@@ -335,26 +326,36 @@ export class SinglePlayerModal extends BaseModal {
       title: translateText("main.solo") || "Solo",
       onBack: () => this.close(),
       ariaLabel: translateText("common.back"),
-      rightContent: responseHasLinkedIdentity(this.userMeResponse)
-        ? html`<button
-              @click=${this.toggleAchievements}
-              class="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all shrink-0 ${this
-                .showAchievements
-                ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-400"
-                : "text-white/60"}"
+      rightContent: html`<button
+            @click=${this.toggleRecords}
+            class="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all shrink-0 ${this
+              .showRecords
+              ? "bg-sky-500/10 border-sky-500/30 text-sky-400"
+              : "text-white/60"}"
+          >
+            <span
+              class="text-xs font-bold uppercase tracking-wider whitespace-nowrap"
+              >${translateText("single_modal.records")}</span
             >
-              <img
-                src=${assetUrl("images/MedalIconWhite.svg")}
-                class="w-4 h-4 opacity-80 shrink-0"
-                style="${this.showAchievements ? "" : "filter: grayscale(1);"}"
-              />
-              <span
-                class="text-xs font-bold uppercase tracking-wider whitespace-nowrap"
-                >${translateText("single_modal.toggle_achievements")}</span
-              >
-            </button>
-            ${this.showAchievements ? this.renderMedalOverview() : null}`
-        : this.renderNotLoggedInBanner(),
+          </button>
+          <button
+            @click=${this.toggleAchievements}
+            class="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all shrink-0 ${this
+              .showAchievements
+              ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-400"
+              : "text-white/60"}"
+          >
+            <img
+              src=${assetUrl("images/MedalIconWhite.svg")}
+              class="w-4 h-4 opacity-80 shrink-0"
+              style="${this.showAchievements ? "" : "filter: grayscale(1);"}"
+            />
+            <span
+              class="text-xs font-bold uppercase tracking-wider whitespace-nowrap"
+              >${translateText("single_modal.toggle_achievements")}</span
+            >
+          </button>
+          ${this.showAchievements ? this.renderMedalOverview() : null}`,
     });
   }
 
@@ -405,7 +406,69 @@ export class SinglePlayerModal extends BaseModal {
     </div>`;
   }
 
+  // Hegemony: the 기록실 panel — summary line plus the newest games first,
+  // all from the device-local store (LocalRecords).
+  private renderRecordsPanel(): TemplateResult {
+    const data = loadRecords();
+    const summary = recordsSummary();
+    return html`
+      <div class="px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
+        <div
+          class="mb-4 px-4 py-3 rounded-xl border border-sky-500/20 bg-sky-500/5 text-sm text-white/80 text-center"
+        >
+          ${translateText("records_panel.summary", {
+            games: summary.totalGames,
+            wins: summary.totalWins,
+            rate: Math.round(summary.winRate * 100),
+            maps: summary.mapsWon,
+          })}
+        </div>
+        ${data.games.length === 0
+          ? html`<div class="py-12 text-center text-sm text-white/40">
+              ${translateText("records_panel.empty")}
+            </div>`
+          : html`<div class="flex flex-col gap-2">
+              ${data.games.map(
+                (g) => html`
+                  <div
+                    class="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-white/10 bg-white/5"
+                  >
+                    <div class="flex flex-col min-w-0 flex-1">
+                      <span class="text-sm font-bold text-white truncate"
+                        >${translateText(`map.${String(g.map).toLowerCase()}`)}</span
+                      >
+                      <span class="text-xs text-white/40"
+                        >${new Date(g.endedAt).toLocaleString("ko-KR")}</span
+                      >
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                      ${medalIcon(g.difficulty, "w-4 h-4")}
+                      <span class="text-xs text-white/50 hidden sm:inline"
+                        >${translateText(
+                          `difficulty.${String(g.difficulty).toLowerCase()}`,
+                        )}</span
+                      >
+                    </div>
+                    <span
+                      class="text-xs font-bold uppercase tracking-wider shrink-0 ${g.result ===
+                      "win"
+                        ? "text-emerald-400"
+                        : "text-red-400"}"
+                      >${translateText(`records_panel.${g.result}`)}</span
+                    >
+                    <span class="text-xs text-white/40 tabular-nums shrink-0 w-12 text-right"
+                      >${formatRecordDuration(g.ticks)}</span
+                    >
+                  </div>
+                `,
+              )}
+            </div>`}
+      </div>
+    `;
+  }
+
   protected renderBody() {
+    if (this.showRecords) return this.renderRecordsPanel();
     const inputCards = [
       html`<toggle-input-card
         .labelKey=${"game_settings.max_timer"}
@@ -579,8 +642,7 @@ export class SinglePlayerModal extends BaseModal {
 
         <!-- Footer Action -->
         <div class="p-6 border-t border-white/10 bg-black/20 shrink-0">
-          ${responseHasLinkedIdentity(this.userMeResponse) &&
-          this.hasOptionsChanged()
+          ${this.cheatsEnabled()
             ? html`<div
                 class="mb-4 px-4 py-3 rounded-xl bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-xs font-bold uppercase tracking-wider text-center"
               >
@@ -603,29 +665,10 @@ export class SinglePlayerModal extends BaseModal {
   }
 
   // Check if any options other than map and difficulty have been changed from defaults
-  private hasOptionsChanged(): boolean {
-    return (
-      this.nations !== this.defaultNationCount ||
-      this.bots !== DEFAULT_OPTIONS.bots ||
-      this.infiniteGold !== DEFAULT_OPTIONS.infiniteGold ||
-      this.infiniteTroops !== DEFAULT_OPTIONS.infiniteTroops ||
-      this.compactMap !== DEFAULT_OPTIONS.compactMap ||
-      this.maxTimer !== DEFAULT_OPTIONS.maxTimer ||
-      this.instantBuild !== DEFAULT_OPTIONS.instantBuild ||
-      this.randomSpawn !== DEFAULT_OPTIONS.randomSpawn ||
-      this.gameMode !== DEFAULT_OPTIONS.gameMode ||
-      this.goldMultiplier !== DEFAULT_OPTIONS.goldMultiplier ||
-      this.startingGold !== DEFAULT_OPTIONS.startingGold ||
-      this.customAlliances !== DEFAULT_OPTIONS.customAlliances ||
-      this.customAllianceMinutes !== DEFAULT_OPTIONS.customAllianceMinutes ||
-      this.waterNukes !== DEFAULT_OPTIONS.waterNukes ||
-      this.doomsdayClock !== DEFAULT_OPTIONS.doomsdayClock ||
-      // Pace only matters when the mode is on (startGame drops it when off).
-      (this.doomsdayClock &&
-        this.doomsdayClockSpeed !== DEFAULT_OPTIONS.doomsdayClockSpeed) ||
-      this.overtime !== DEFAULT_OPTIONS.overtime ||
-      this.disabledUnits.length > 0
-    );
+  // Hegemony: only the cheat options cost a game its medal — bot counts,
+  // timers and the like are legitimate ways to play.
+  private cheatsEnabled(): boolean {
+    return this.infiniteGold || this.infiniteTroops || this.instantBuild;
   }
 
   protected onClose(): void {

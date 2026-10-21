@@ -418,7 +418,10 @@ export class GameModeSelector extends LitElement {
     }
     // After the session seed above: a shell that already knows it has no
     // session must not open a feed it will close on the next tick.
-    this.start();
+    // Hegemony: the solo static build has no lobby server at all — opening
+    // the feed only retries a dead socket and ends in a "connection error"
+    // modal over the menu.
+    if (!ClientEnv.soloStatic()) this.start();
     document.addEventListener(
       "desktop-session-state",
       this.onDesktopSessionState,
@@ -556,6 +559,8 @@ export class GameModeSelector extends LitElement {
   }
 
   private openLobbyFeed(refreshList = false) {
+    // Hegemony: no lobby feed exists on the solo static build.
+    if (ClientEnv.soloStatic()) return;
     this.feedWanted = true;
     this.feedGaveUp = false;
     if (lobbyFeedSuspended(this.desktopSessionState)) {

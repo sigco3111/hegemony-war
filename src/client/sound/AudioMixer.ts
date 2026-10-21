@@ -1,5 +1,6 @@
 import { Howl, Howler } from "howler";
 import { Platform } from "../Platform";
+import { ClientEnv } from "../ClientEnv";
 import {
   AudioCategory,
   USER_SETTINGS_CHANGED_EVENT,
@@ -358,6 +359,8 @@ export class AudioMixer {
 
   /** Plays a cue on its own channel, within that channel's budget. */
   play(name: SoundEffect): void {
+    // Hegemony: the solo static build ships no audio files — never load one.
+    if (ClientEnv.soloStatic()) return;
     const category = categoryOf(name);
     if (!this.isAudible(category)) return;
     this.safely(`play sound ${name}`, () => {

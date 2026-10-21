@@ -1,30 +1,16 @@
 [
   {
-    "id": "firefox-performance-issues-2026",
-    "title": "Firefox Performance Issues",
-    "descriptionTranslationKey": "news_box.firefox_warning",
+    "id": "hegemony-launch-2026",
+    "title": "패권의 시간",
+    "description": "AI 국가들과 세계의 패권을 겨루는 싱글플레이 전략 게임. 혼자 하기를 눌러 바로 시작하세요.",
     "url": null,
-    "type": "warning"
+    "type": "announcement"
   },
   {
-    "id": "clan-tournament-spring-2026",
-    "title": "Upcoming: Spring Clan Tournament",
-    "description": "2v2 clan battles — Sign up on Discord before April 12",
-    "url": "https://discord.gg/openfront",
-    "type": "tournament"
-  },
-  {
-    "id": "clan-tournaments-2026",
-    "title": "Clan Tournaments",
-    "description": "Join a clan and compete in weekly tournaments on Discord!",
-    "url": "https://discord.gg/openfront",
-    "type": "tournament"
-  },
-  {
-    "id": "tutorial-2026",
-    "title": "New Player Tutorial",
-    "description": "Learn the basics of OpenFront in this video guide",
-    "url": "https://www.youtube.com/watch?v=EN2oOog3pSs",
+    "id": "hegemony-medals-2026",
+    "title": "정복 메달에 도전하세요",
+    "description": "각 지도를 난이도별로 정복하면 메달을 획득합니다. 기록은 이 기기에 저장됩니다.",
+    "url": null,
     "type": "tutorial"
   }
 ]

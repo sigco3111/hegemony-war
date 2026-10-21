@@ -230,6 +230,9 @@ export default defineConfig(({ mode }) => {
       ? JSON.stringify(env.FARO_COLLECTOR_URL)
       : undefined,
     instanceId: JSON.stringify(env.INSTANCE_ID ?? "DEV_ID"),
+    // Hegemony: true on the Pages static solo build; gates every
+    // server-dependent client surface (lobby feed, auth refresh, sounds...).
+    soloStatic: env.PAGES_BASE ? "true" : undefined,
     manifestHref: buildAssetUrl("manifest.json", assetManifest, cdnBase),
     faviconHref: buildAssetUrl("images/HegemonyMark.svg", assetManifest, cdnBase),
     gameplayScreenshotUrl: buildAssetUrl(

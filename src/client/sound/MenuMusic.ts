@@ -2,6 +2,7 @@ import { assetUrl } from "@openfront/shared/AssetUrls";
 import { Howl } from "howler";
 import { AudioMixer, streamsMusic } from "./AudioMixer";
 
+import { ClientEnv } from "../ClientEnv";
 // Long enough not to sound like a cut, short enough that the lobby is not
 // still playing menu music when the map appears.
 const MENU_FADE_MS = 700;
@@ -199,6 +200,8 @@ export function startMenuMusic(
   };
 
   const start = () => {
+    // Hegemony: the solo static build ships no menu theme — stay silent.
+    if (ClientEnv.soloStatic()) return;
     if (theme !== null) return;
     // Nothing to hear on a channel the player has turned off, and on the Web
     // Audio path starting means holding the whole theme decoded. The mixer

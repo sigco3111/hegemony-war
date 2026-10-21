@@ -1892,7 +1892,8 @@
     "medals_of_maps": "/ {total}개 지도",
     "options_changed_no_achievements": "사용자 지정 설정 – 업적 비활성화",
     "sign_in_for_achievements": "업적을 달성하려면 로그인하세요",
-    "toggle_achievements": "업적 토글"
+    "toggle_achievements": "업적 토글",
+    "records": "기록"
   },
   "spawn_timer": {
     "team_percent_tooltip": "{team}: {percent}"
@@ -2437,5 +2438,11 @@
     "you_won": "나의 승리!",
     "your_team": "우리팀이 승리했습니다!",
     "youtube_tutorial": "도움이 필요하신가요?"
+  },
+  "records_panel": {
+    "summary": "총 {games}게임 · {wins}승 ({rate}%) · 메달 {maps}개 지도",
+    "empty": "아직 완료한 게임이 없습니다",
+    "win": "승리",
+    "loss": "패배"
   }
 }

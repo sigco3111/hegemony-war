@@ -3,7 +3,6 @@ import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { composeVersionDisplay, desktopVersion } from "../DesktopShell";
 import { currentGameVersion } from "../GameVersion";
-import "./SteamWishlistButton";
 
 @customElement("page-footer")
 export class Footer extends LitElement {
@@ -113,31 +112,19 @@ export class Footer extends LitElement {
             class="text-xs mt-1 lg:mt-2 flex items-center justify-center gap-4 px-4"
           >
             <a
-              href="/terms-of-service.html"
-              data-i18n="main.terms_of_service"
+              href="https://github.com/sigco3111/hegemony-war"
               target="_blank"
               class="hover:text-white transition-colors"
-            ></a>
+            >소스 코드 (GitHub)</a>
             <span data-i18n="main.copyright"></span>
             <a
-              href="/privacy-policy.html"
-              data-i18n="main.privacy_policy"
+              href="https://github.com/openfrontio/OpenFrontIO"
               target="_blank"
               class="hover:text-white transition-colors"
-            ></a>
+            >원본 프로젝트</a>
           </div>
         </div>
 
-        <!-- Phones keep the full store widget on the play page instead; there
-             is no room for it here. -->
-        <div
-          class="hidden lg:flex lg:col-start-3 lg:items-center lg:justify-end lg:pt-2 lg:pr-20"
-        >
-          <steam-wishlist-button
-            campaign="home_desktop"
-            class="min-w-0 flex-1 max-w-[544px]"
-          ></steam-wishlist-button>
-        </div>
 
         <!-- Single instance: translateText() resolves the active language via
              document.querySelector("lang-selector"), so a second one would

@@ -2205,7 +2205,8 @@
     "medals_of_maps": "out of {total} maps",
     "options_changed_no_achievements": "Custom settings – achievements disabled",
     "sign_in_for_achievements": "Sign in for achievements",
-    "toggle_achievements": "Toggle achievements"
+    "toggle_achievements": "Toggle achievements",
+    "records": "Records"
   },
   "spawn_timer": {
     "team_percent_tooltip": "{team}: {percent}"
@@ -2781,5 +2782,11 @@
     "you_won": "You Won!",
     "your_team": "Your team won!",
     "youtube_tutorial": "Need some help?"
+  },
+  "records_panel": {
+    "summary": "{games} games · {wins} wins ({rate}%) · medals on {maps} maps",
+    "empty": "No finished games yet",
+    "win": "Win",
+    "loss": "Loss"
   }
 }

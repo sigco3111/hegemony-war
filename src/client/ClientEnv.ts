@@ -43,6 +43,15 @@ export class NoServerError extends Error {
 }
 
 export class ClientEnv {
+  /**
+   * Hegemony: true on the Pages static solo build. Every server-dependent
+   * surface (lobby feed, auth refresh, API polls, sounds, progression calls)
+   * gates on this instead of discovering the missing backend per request.
+   */
+  static soloStatic(): boolean {
+    return ClientEnv.get().soloStatic === true;
+  }
+
   private static values: ClientEnvValues | null = null;
   private static publicKey: JWK | null = null;
   // The API-served server list (src/client/ServerList.ts), once fetched, and
@@ -678,4 +687,7 @@ export interface ClientEnvValues {
   gitCommit: string;
   serverHost?: string;
   siteHost?: string;
+  // Hegemony: injected only by the Pages static solo build (PAGES_BASE set).
+  // True there — the build has no backend of any kind by design.
+  soloStatic?: boolean;
 }

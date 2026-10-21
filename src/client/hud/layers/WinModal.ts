@@ -58,6 +58,8 @@ import { PlaySoundEffectEvent } from "../../sound/Sounds";
 import { steamSDK } from "../../SteamSDK";
 import { SendWinnerEvent } from "../../Transport";
 import { GameView } from "../../view";
+import { ClientEnv } from "../../ClientEnv";
+import { recordSoloGameEnd } from "../../LocalRecords";
 
 type LegendCeremonyModule = typeof import("../../components/LegendCeremony");
 
@@ -134,6 +136,9 @@ export class WinModal extends LitElement implements Controller {
   // A Win update has come: anything read of the account from now on may
   // already count this game.
   private gameOverSeen = false;
+  // Hegemony: guards the local-records write — a death and a later
+  // opponent win are ONE result for the 기록실.
+  private recordedSoloResult = false;
   // The account's progress as read while the game was on (init): what a
   // figure from the end starts from, and is kept as not including.
   private startAccount: { publicId: string; progress: Progress } | null = null;
@@ -622,6 +627,9 @@ export class WinModal extends LitElement implements Controller {
    * one from the finished game while the poll runs.
    */
   private async updateXp(gameOver: boolean): Promise<void> {
+    // Hegemony: no account progression exists on the solo static build —
+    // local records (LocalRecords) take over instead.
+    if (ClientEnv.soloStatic()) return;
     if (this.xpPolling) return;
     // Normally here since the game started; tried again should that fetch
     // have failed.
@@ -940,6 +948,27 @@ export class WinModal extends LitElement implements Controller {
     }
   }
 
+  // Hegemony: write this game's result to the device-local 기록실. Only
+  // solo games, only once, win = me (or my team) took the game.
+  private recordSoloResult(result: "win" | "loss"): void {
+    if (this.recordedSoloResult) return;
+    if (!ClientEnv.soloStatic()) return;
+    const config = this.game.config().gameConfig();
+    if (config.gameType !== GameType.Singleplayer) return;
+    this.recordedSoloResult = true;
+    recordSoloGameEnd({
+      id: `${this.game.gameID()}`,
+      endedAt: Date.now(),
+      map: config.gameMap,
+      difficulty: config.difficulty,
+      gameMode: config.gameMode,
+      result,
+      ticks: this.game.ticks(),
+      cheats:
+        config.infiniteGold || config.infiniteTroops || config.instantBuild,
+    });
+  }
+
   tick() {
     const myPlayer = this.game.myPlayer();
     if (
@@ -950,6 +979,7 @@ export class WinModal extends LitElement implements Controller {
       myPlayer.hasSpawned()
     ) {
       this.hasShownDeathModal = true;
+      this.recordSoloResult("loss");
       this._title = translateText("win_modal.died");
       this.eventBus.emit(new PlaySoundEffectEvent("defeat"));
       void this.updateXp(false);
@@ -980,12 +1010,14 @@ export class WinModal extends LitElement implements Controller {
         if (wu.winner[1] === this.game.myPlayer()?.team()) {
           this._title = translateText("win_modal.your_team");
           this.isWin = true;
+          this.recordSoloResult("win");
           gamePortal.happytime();
         } else {
           this._title = translateText("win_modal.other_team", {
             team: getTranslatedPlayerTeamLabel(wu.winner[1]),
           });
           this.isWin = false;
+          this.recordSoloResult("loss");
         }
         this.playEndOfGameSound();
         history.replaceState(null, "", `${window.location.pathname}?replay`);
@@ -996,6 +1028,7 @@ export class WinModal extends LitElement implements Controller {
           nation: wu.winner[1],
         });
         this.isWin = false;
+        this.recordSoloResult("loss");
         this.playEndOfGameSound();
         this.show();
       } else {
@@ -1011,12 +1044,14 @@ export class WinModal extends LitElement implements Controller {
         ) {
           this._title = translateText("win_modal.you_won");
           this.isWin = true;
+          this.recordSoloResult("win");
           gamePortal.happytime();
         } else {
           this._title = translateText("win_modal.other_won", {
             player: winner.displayName(),
           });
           this.isWin = false;
+          this.recordSoloResult("loss");
         }
         this.playEndOfGameSound();
         history.replaceState(null, "", `${window.location.pathname}?replay`);

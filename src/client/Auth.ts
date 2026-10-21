@@ -522,6 +522,12 @@ async function doRefreshJwt(): Promise<void> {
       return doPortalLogin(portal, token);
     }
   }
+  // Hegemony: the solo static build has no auth server. Skip the refresh
+  // round trip outright — it could only fail — and settle as signed out.
+  if (ClientEnv.soloStatic()) {
+    __jwt = null;
+    return;
+  }
   try {
     console.log("Refreshing jwt");
     // Bounded like doSteamLogin below: userAuth() awaits this, and every
