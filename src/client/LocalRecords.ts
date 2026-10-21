@@ -7,6 +7,7 @@ import {
   CHALLENGES,
   challengesSatisfied,
   GRAND_HEGEMON_ID,
+  LEGACY_SCENARIO_CHECKS,
 } from "./Challenges";
 
 /**
@@ -51,6 +52,13 @@ interface LocalRecordsData {
   wins: Partial<Record<GameMapType, Difficulty[]>>;
   // Cleared challenge ids (see Challenges.ts).
   challenges?: string[];
+  // Permanent grant evidence for cleared challenges: the winning record that
+  // earned each one. Not subject to the games cap, so proofs survive history
+  // rotation and refreshes. Clears from before this field existed are
+  // backfilled by the one-time migration when their record is still around.
+  challengeProofs?: Record<string, SoloGameRecord>;
+  // One-time data migrations that already ran (never re-run).
+  migrations?: { scenarioGateV2?: boolean };
 }
 
 const STORAGE_KEY = "hegemony.records.v1";
@@ -72,40 +80,68 @@ export function loadRecords(): LocalRecordsData {
     }
     parsed.wins ??= {};
     parsed.challenges ??= [];
-    return revalidateChallenges(parsed);
+    return migrateScenarioGateV2(parsed);
   } catch {
     return emptyData();
   }
 }
 
 /**
- * Challenge rules get stricter over time (e.g. scenario wins must come from
- * a real config, not a hollowed-out one). A cleared id is only as good as
- * the recorded win behind it: on every load, drop any challenge no stored
- * winning record still satisfies, then recompute the meta challenge.
- * 업적·전적 자체는 건드리지 않는다 - only the challenge id list changes.
+ * One-time migration for the v1.1 scenario gate. Before it, hollowed-out
+ * configs (0 opponents, 1-minute timer) cleared scenario challenges.
+ *
+ * For each stored scenario clear without a pinned proof:
+ * - a stored win satisfying the CURRENT rule pins it as proof and keeps it;
+ * - a stored win satisfying the LEGACY rule but not the current one is
+ *   positive evidence of a wrong grant: the clear is revoked;
+ * - no evidence either way (record rotated out of the history cap, or the
+ *   clear predates record fields): PRESERVED. Absence is not invalidity.
+ *
+ * Proof-backed and achievement-type clears are never touched here, and the
+ * migration runs once, so legitimate clears survive the 200-game history
+ * rotation forever. 전적(games)·업적(wins) 데이터는 건드리지 않는다.
  */
-function revalidateChallenges(data: LocalRecordsData): LocalRecordsData {
+function migrateScenarioGateV2(data: LocalRecordsData): LocalRecordsData {
+  if (data.migrations?.scenarioGateV2 === true) return data;
+  data.migrations = { ...data.migrations, scenarioGateV2: true };
+  data.challengeProofs ??= {};
+
   const wins = data.games.filter(
     (g) => g.result === "win" && g.cheats !== true,
   );
   const kept: string[] = [];
   for (const id of data.challenges ?? []) {
-    if (id === GRAND_HEGEMON_ID) continue; // recomputed below
+    if (id === GRAND_HEGEMON_ID) continue; // derived; recomputed below
     const def = CHALLENGES.find((c) => c.id === id);
     if (def === undefined) continue; // retired challenge
-    if (wins.some((g) => def.check(g))) kept.push(id);
+    if (data.challengeProofs[id] !== undefined) {
+      kept.push(id); // verified at grant time; permanent
+      continue;
+    }
+    if (def.scenario !== true) {
+      kept.push(id); // 업적형: the rule never changed
+      continue;
+    }
+    const validRecord = wins.find((g) => def.check(g));
+    if (validRecord !== undefined) {
+      data.challengeProofs[id] = validRecord; // legitimize + pin proof
+      kept.push(id);
+      continue;
+    }
+    const legacyCheck = LEGACY_SCENARIO_CHECKS[id];
+    const wrongGrant =
+      legacyCheck !== undefined
+        ? wins.find((g) => legacyCheck(g) && !def.check(g))
+        : undefined;
+    if (wrongGrant !== undefined) continue; // proven old-gate grant: revoke
+    kept.push(id); // no evidence: preserve
   }
   const allOthersCleared = CHALLENGES.every(
     (c) => c.id === GRAND_HEGEMON_ID || kept.includes(c.id),
   );
   if (allOthersCleared) kept.push(GRAND_HEGEMON_ID);
-  const before = JSON.stringify(data.challenges ?? []);
-  const after = JSON.stringify(kept);
-  if (before !== after) {
-    data.challenges = kept;
-    saveRecords(data);
-  }
+  data.challenges = kept;
+  saveRecords(data);
   return data;
 }
 
@@ -134,6 +170,8 @@ export function recordSoloGameEnd(record: SoloGameRecord): string[] {
     for (const id of challengesSatisfied(record)) {
       if (!data.challenges.includes(id)) {
         data.challenges.push(id);
+        // Pin permanent grant evidence (survives history rotation).
+        (data.challengeProofs ??= {})[id] = record;
         newlyCleared.push(id);
       }
     }
@@ -145,6 +183,7 @@ export function recordSoloGameEnd(record: SoloGameRecord): string[] {
       )
     ) {
       data.challenges.push(GRAND_HEGEMON_ID);
+      (data.challengeProofs ??= {})[GRAND_HEGEMON_ID] = record;
       newlyCleared.push(GRAND_HEGEMON_ID);
     }
   }

@@ -52,54 +52,66 @@ const realBlitzWin = {
   maxTimerValue: null,
 };
 
-describe("revalidateChallenges on load", () => {
+function seed(data: object) {
+  store.set("hegemony.records.v1", JSON.stringify({ version: 1, wins: {}, ...data }));
+}
+
+describe("scenarioGateV2 one-time migration", () => {
   beforeEach(() => store.clear());
 
-  it("revokes scenario clears whose records fail the current gate, keeps achievements", () => {
-    store.set(
-      "hegemony.records.v1",
-      JSON.stringify({
-        version: 1,
-        games: [trickBlitzWin, legitSurroundedWin],
-        wins: {},
-        challenges: ["blitz", "surrounded_breakout", "pacifist"],
-      }),
-    );
+  it("revokes clears with positive evidence of an old-gate grant, keeps achievements", () => {
+    seed({
+      games: [trickBlitzWin, legitSurroundedWin],
+      challenges: ["blitz", "surrounded_breakout", "pacifist"],
+    });
     const data = loadRecords();
-    // blitz: only a trick win on record -> revoked.
-    // pacifist: no satisfying record at all -> revoked.
-    // surrounded_breakout: achievement-type, record stands -> kept.
-    expect(data.challenges).toEqual(["surrounded_breakout"]);
-    // Persisted, not just in memory.
+    // blitz: only a trick win on record (legacy-satisfying, gate-failing) -> revoked.
+    // pacifist: no evidence either way -> PRESERVED.
+    // surrounded_breakout: achievement-type, never re-examined -> kept.
+    expect(data.challenges).toEqual(["surrounded_breakout", "pacifist"]);
     const saved = JSON.parse(store.get("hegemony.records.v1")!);
-    expect(saved.challenges).toEqual(["surrounded_breakout"]);
-    // Games history untouched.
-    expect(saved.games).toHaveLength(2);
+    expect(saved.games).toHaveLength(2); // history untouched
+    expect(saved.migrations.scenarioGateV2).toBe(true);
   });
 
-  it("keeps a scenario clear backed by a real-config win", () => {
-    store.set(
-      "hegemony.records.v1",
-      JSON.stringify({
-        version: 1,
-        games: [realBlitzWin],
-        wins: {},
-        challenges: ["blitz"],
-      }),
-    );
+  it("legitimizes a clear backed by a current-gate win and pins permanent proof", () => {
+    seed({ games: [realBlitzWin], challenges: ["blitz"] });
+    const data = loadRecords();
+    expect(data.challenges).toEqual(["blitz"]);
+    expect(data.challengeProofs?.blitz?.id).toBe("g3");
+  });
+
+  it("preserves clears with no evidence (record rotated out)", () => {
+    seed({ games: [], challenges: ["blitz", "outnumbered"] });
+    expect(loadRecords().challenges).toEqual(["blitz", "outnumbered"]);
+  });
+
+  it("runs once: later arrivals of trick records revoke nothing", () => {
+    seed({ games: [], challenges: ["outnumbered"] });
+    loadRecords(); // migration runs, preserves
+    // A trick record appears afterwards; migration must not re-run.
+    const before = JSON.parse(store.get("hegemony.records.v1")!);
+    before.games = [trickBlitzWin];
+    store.set("hegemony.records.v1", JSON.stringify(before));
+    expect(loadRecords().challenges).toEqual(["outnumbered"]);
+  });
+
+  it("proof-backed clears survive 200-game history rotation", () => {
+    const rotated = Array.from({ length: 200 }, (_, i) => ({
+      ...trickBlitzWin,
+      id: `gx${i}`,
+    }));
+    seed({
+      games: rotated,
+      challenges: ["blitz"],
+      challengeProofs: { blitz: realBlitzWin },
+    });
+    // The granting record is no longer in games[], but the proof persists.
     expect(loadRecords().challenges).toEqual(["blitz"]);
   });
 
   it("recomputes grand_hegemon from the kept set", () => {
-    store.set(
-      "hegemony.records.v1",
-      JSON.stringify({
-        version: 1,
-        games: [trickBlitzWin],
-        wins: {},
-        challenges: ["blitz", "grand_hegemon"],
-      }),
-    );
+    seed({ games: [trickBlitzWin], challenges: ["blitz", "grand_hegemon"] });
     const data = loadRecords();
     expect(data.challenges).not.toContain("grand_hegemon");
   });

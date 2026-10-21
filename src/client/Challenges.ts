@@ -187,6 +187,30 @@ export const CHALLENGES: Challenge[] = [
   },
 ];
 
+/**
+ * Legacy (pre-v1.1) scenario rules, kept ONLY for the one-time migration in
+ * LocalRecords: a stored win satisfying the legacy rule but not the current
+ * one is positive evidence that a clear was granted by the old, looser gate.
+ */
+export const LEGACY_SCENARIO_CHECKS: Record<
+  string,
+  (r: ChallengeRecordInfo) => boolean
+> = {
+  blitz: (r) =>
+    r.map === GameMapType.World &&
+    difficultyAtLeast(r.difficulty, Difficulty.Medium) &&
+    r.ticks <= 6000,
+  hold_the_line: (r) =>
+    r.map === GameMapType.Surrounded &&
+    difficultyAtLeast(r.difficulty, Difficulty.Hard) &&
+    r.maxTimerValue != null,
+  pacifist: (r) =>
+    difficultyAtLeast(r.difficulty, Difficulty.Medium) &&
+    NUKE_UNITS.every((u) => r.disabledUnits?.includes(u) ?? false),
+  outnumbered: (r) =>
+    difficultyAtLeast(r.difficulty, Difficulty.Hard) && (r.bots ?? 0) >= 300,
+};
+
 /** Challenges this winning record satisfies (the meta challenge excluded). */
 export function challengesSatisfied(r: ChallengeRecordInfo): string[] {
   const out: string[] = [];
