@@ -2839,6 +2839,7 @@
     "empty": "No orders yet. While paused, click an enemy territory or a transport-ship attack and it will be queued here.",
     "est_troops": "~{troops}",
     "executing": "Running the plan ({done}/{total})",
+    "execution_paused": "Paused — launches are held ({done}/{total})",
     "heading": "Pause operation plan",
     "kind_attack": "Land attack",
     "kind_boat": "Transport ship attack",

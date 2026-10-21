@@ -2495,6 +2495,7 @@
     "empty": "예약된 작전이 없습니다. 일시정지 상태에서 적 영토나 수송선 공격을 클릭하면 여기에 쌓입니다.",
     "est_troops": "약 {troops}",
     "executing": "작전 실행 중 ({done}/{total})",
+    "execution_paused": "일시정지됨 — 발사는 멈춰 있습니다 ({done}/{total})",
     "heading": "일시정지 작전 계획",
     "kind_attack": "지상 공격",
     "kind_boat": "수송선 공격",

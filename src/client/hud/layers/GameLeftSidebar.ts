@@ -177,7 +177,7 @@ export class GameLeftSidebar extends LitElement implements Controller {
         }`}
         style="margin-top: ${this.barOffset}px;"
       >
-        <div class="flex items-center gap-4 xl:gap-6 text-white">
+        <div class="flex flex-wrap items-center gap-4 max-[480px]:max-w-[132px] max-[480px]:gap-2 xl:gap-6 text-white">
           <div
             class="cursor-pointer p-0.5 bg-gray-700/50 hover:bg-gray-600 border rounded-md border-slate-500 transition-colors"
             @click=${this.togglePlayerStats}

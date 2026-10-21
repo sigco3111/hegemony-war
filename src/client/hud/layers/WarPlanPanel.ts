@@ -363,14 +363,21 @@ export class WarPlanPanel extends LitElement implements Controller {
                 ${translateText("war_plan.ratio_hint", { pct: sliderPct })}
               </p>
             </section>
-            ${this.executing
+            ${this.executing && !this.paused
               ? html`<p class="text-xs text-emerald-300/90 tabular-nums">
                   ${translateText("war_plan.executing", {
                     done: finished,
                     total: orders.length,
                   })}
                 </p>`
-              : nothing}
+              : this.executing && this.paused
+                ? html`<p class="text-xs text-amber-300/90 tabular-nums">
+                    ${translateText("war_plan.execution_paused", {
+                      done: finished,
+                      total: orders.length,
+                    })}
+                  </p>`
+                : nothing}
             <section>
               ${orders.length === 0
                 ? html`<div class="text-white/40 text-sm py-2">
