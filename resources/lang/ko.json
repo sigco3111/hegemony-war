@@ -2437,10 +2437,11 @@
     "territory_pattern": "영토 스킨을 구매하고 광고 없이 플레이하세요!",
     "you_won": "나의 승리!",
     "your_team": "우리팀이 승리했습니다!",
-    "youtube_tutorial": "도움이 필요하신가요?"
+    "youtube_tutorial": "도움이 필요하신가요?",
+    "challenge_cleared": "챌린지 달성!"
   },
   "records_panel": {
-    "summary": "총 {games}게임 · {wins}승 ({rate}%) · 메달 {maps}개 지도",
+    "summary": "총 {games}판 · 승리 {wins}회 · 승률 {rate}% · 정복한 맵 {maps}개 · 챌린지 {challenges}/{challengesTotal}",
     "empty": "아직 완료한 게임이 없습니다",
     "win": "승리",
     "loss": "패배"
@@ -2460,5 +2461,38 @@
     "k_broken": "동맹 파기",
     "k_expired": "동맹 만료",
     "k_embargo": "교역 중단"
+  },
+  "challenges": {
+    "title": "챌린지",
+    "done": "달성",
+    "todo": "미달성",
+    "korea_spirit": {
+      "title": "한반도의 기상",
+      "desc": "대한민국 맵에서 승리 (쉬움 이상)"
+    },
+    "yellowsea_lord": {
+      "title": "황해의 제왕",
+      "desc": "황해 맵에서 승리 (보통 이상)"
+    },
+    "eastasia_hegemon": {
+      "title": "동아시아의 패자",
+      "desc": "동아시아 맵에서 승리 (어려움 이상)"
+    },
+    "surrounded_breakout": {
+      "title": "포위 돌파",
+      "desc": "포위 맵에서 승리 (보통 이상)"
+    },
+    "baikal_survivor": {
+      "title": "핵전쟁 생존자",
+      "desc": "바이칼 (핵전쟁용) 맵에서 승리 (쉬움 이상)"
+    },
+    "impossible_conquest": {
+      "title": "불가능은 없다",
+      "desc": "아무 맵에서나 불지옥 난이도로 승리"
+    },
+    "grand_hegemon": {
+      "title": "패권의 시간",
+      "desc": "다른 모든 챌린지 달성"
+    }
   }
 }

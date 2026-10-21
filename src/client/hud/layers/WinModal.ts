@@ -139,6 +139,11 @@ export class WinModal extends LitElement implements Controller {
   // Hegemony: guards the local-records write — a death and a later
   // opponent win are ONE result for the 기록실.
   private recordedSoloResult = false;
+
+  // Challenges this game's result cleared for the first time — the win
+  // modal celebrates them. Written by recordSoloResult.
+  @state()
+  private clearedChallengesNow: string[] = [];
   // The account's progress as read while the game was on (init): what a
   // figure from the end starts from, and is kept as not including.
   private startAccount: { publicId: string; progress: Progress } | null = null;
@@ -187,6 +192,23 @@ export class WinModal extends LitElement implements Controller {
             .gameType=${this.game?.config().gameConfig().gameType ?? null}
             @xp-legend=${this.onXpLegend}
           ></game-xp-panel>
+          ${this.clearedChallengesNow.length > 0
+            ? html`<div class="mb-3 flex flex-col gap-1.5">
+                ${this.clearedChallengesNow.map(
+                  (id) => html`<div
+                    class="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-400/40 bg-amber-400/10"
+                  >
+                    <span
+                      class="shrink-0 text-xs font-bold uppercase tracking-wider text-amber-300"
+                      >${translateText("win_modal.challenge_cleared")}</span
+                    >
+                    <span class="text-sm font-bold text-amber-100"
+                      >${translateText(`challenges.${id}.title`)}</span
+                    >
+                  </div>`,
+                )}
+              </div>`
+            : nothing}
           ${this.innerHtml()}
         </div>
         <!-- Leaving is the quieter action, on the left; staying in the game
@@ -959,7 +981,7 @@ export class WinModal extends LitElement implements Controller {
     const config = this.game.config().gameConfig();
     if (config.gameType !== GameType.Singleplayer) return;
     this.recordedSoloResult = true;
-    recordSoloGameEnd({
+    this.clearedChallengesNow = recordSoloGameEnd({
       id: `${this.game.gameID()}`,
       endedAt: Date.now(),
       map: config.gameMap,

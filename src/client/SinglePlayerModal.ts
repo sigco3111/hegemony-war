@@ -44,7 +44,9 @@ import {
   toOptionalNumber,
 } from "./utilities/GameConfigHelpers";
 
+import { CHALLENGES } from "./Challenges";
 import {
+  clearedChallenges,
   formatRecordDuration,
   loadRecords,
   localMapWins,
@@ -406,6 +408,54 @@ export class SinglePlayerModal extends BaseModal {
     </div>`;
   }
 
+  // Hegemony: the 챌린지 list — fixed goal/reward scenarios on existing
+  // maps, cleared by solo wins (no cheats), stored in LocalRecords.
+  private renderChallengesSection(): TemplateResult {
+    const cleared = clearedChallenges();
+    return html`
+      <div class="mb-4">
+        <div
+          class="mb-2 px-1 text-xs font-bold uppercase tracking-wider text-white/50"
+        >
+          ${translateText("challenges.title")}
+          (${cleared.size}/${CHALLENGES.length})
+        </div>
+        <div class="flex flex-col gap-2">
+          ${CHALLENGES.map((c) => {
+            const done = cleared.has(c.id);
+            return html`
+              <div
+                class="flex items-center gap-3 px-4 py-2.5 rounded-xl border ${done
+                  ? "border-amber-400/40 bg-amber-400/10"
+                  : "border-white/10 bg-white/5"}"
+              >
+                <div class="flex flex-col min-w-0 flex-1">
+                  <span
+                    class="text-sm font-bold truncate ${done
+                      ? "text-amber-200"
+                      : "text-white"}"
+                    >${translateText(`challenges.${c.id}.title`)}</span
+                  >
+                  <span class="text-xs text-white/40 truncate"
+                    >${translateText(`challenges.${c.id}.desc`)}</span
+                  >
+                </div>
+                <span
+                  class="text-xs font-bold uppercase tracking-wider shrink-0 ${done
+                    ? "text-amber-300"
+                    : "text-white/30"}"
+                  >${translateText(
+                    done ? "challenges.done" : "challenges.todo",
+                  )}</span
+                >
+              </div>
+            `;
+          })}
+        </div>
+      </div>
+    `;
+  }
+
   // Hegemony: the 기록실 panel — summary line plus the newest games first,
   // all from the device-local store (LocalRecords).
   private renderRecordsPanel(): TemplateResult {
@@ -421,8 +471,11 @@ export class SinglePlayerModal extends BaseModal {
             wins: summary.totalWins,
             rate: Math.round(summary.winRate * 100),
             maps: summary.mapsWon,
+            challenges: summary.challengesCleared,
+            challengesTotal: summary.challengesTotal,
           })}
         </div>
+        ${this.renderChallengesSection()}
         ${data.games.length === 0
           ? html`<div class="py-12 text-center text-sm text-white/40">
               ${translateText("records_panel.empty")}

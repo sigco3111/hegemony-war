@@ -2781,10 +2781,11 @@
     "territory_pattern": "Purchase a territory skin to go ad-free!",
     "you_won": "You Won!",
     "your_team": "Your team won!",
-    "youtube_tutorial": "Need some help?"
+    "youtube_tutorial": "Need some help?",
+    "challenge_cleared": "Challenge cleared!"
   },
   "records_panel": {
-    "summary": "{games} games · {wins} wins ({rate}%) · medals on {maps} maps",
+    "summary": "{games} games · {wins} wins · {rate}% win rate · {maps} maps conquered · challenges {challenges}/{challengesTotal}",
     "empty": "No finished games yet",
     "win": "Win",
     "loss": "Loss"
@@ -2804,5 +2805,38 @@
     "k_broken": "alliance broken",
     "k_expired": "alliance expired",
     "k_embargo": "embargo"
+  },
+  "challenges": {
+    "title": "Challenges",
+    "done": "Cleared",
+    "todo": "Open",
+    "korea_spirit": {
+      "title": "Spirit of the Peninsula",
+      "desc": "Win on the Korea map (Easy or higher)"
+    },
+    "yellowsea_lord": {
+      "title": "Lord of the Yellow Sea",
+      "desc": "Win on the Yellow Sea map (Medium or higher)"
+    },
+    "eastasia_hegemon": {
+      "title": "Hegemon of East Asia",
+      "desc": "Win on the East Asia map (Hard or higher)"
+    },
+    "surrounded_breakout": {
+      "title": "Breakout",
+      "desc": "Win on the Surrounded map (Medium or higher)"
+    },
+    "baikal_survivor": {
+      "title": "Nuke War Survivor",
+      "desc": "Win on the Baikal (Nuke Wars) map (Easy or higher)"
+    },
+    "impossible_conquest": {
+      "title": "Nothing Is Impossible",
+      "desc": "Win on any map on Impossible difficulty"
+    },
+    "grand_hegemon": {
+      "title": "Age of Hegemony",
+      "desc": "Clear every other challenge"
+    }
   }
 }
