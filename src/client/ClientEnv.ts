@@ -190,6 +190,7 @@ export class ClientEnv {
       // Absent on the web build (falls back to same-origin window.location).
       serverHost: bc.serverHost,
       siteHost: bc.siteHost,
+      soloStatic: bc.soloStatic === true,
     };
     return ClientEnv.values;
   }

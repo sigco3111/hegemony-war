@@ -43,6 +43,9 @@ declare global {
       // standalone deployments (beta, branch previews, dev), desktop, and
       // static pages.
       siteHost?: string;
+      // Hegemony: set only on the Pages static solo build; gates every
+      // server-dependent surface (see ClientEnv.soloStatic()).
+      soloStatic?: boolean;
     };
   }
 }
