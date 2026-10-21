@@ -72,10 +72,41 @@ export function loadRecords(): LocalRecordsData {
     }
     parsed.wins ??= {};
     parsed.challenges ??= [];
-    return parsed;
+    return revalidateChallenges(parsed);
   } catch {
     return emptyData();
   }
+}
+
+/**
+ * Challenge rules get stricter over time (e.g. scenario wins must come from
+ * a real config, not a hollowed-out one). A cleared id is only as good as
+ * the recorded win behind it: on every load, drop any challenge no stored
+ * winning record still satisfies, then recompute the meta challenge.
+ * 업적·전적 자체는 건드리지 않는다 - only the challenge id list changes.
+ */
+function revalidateChallenges(data: LocalRecordsData): LocalRecordsData {
+  const wins = data.games.filter(
+    (g) => g.result === "win" && g.cheats !== true,
+  );
+  const kept: string[] = [];
+  for (const id of data.challenges ?? []) {
+    if (id === GRAND_HEGEMON_ID) continue; // recomputed below
+    const def = CHALLENGES.find((c) => c.id === id);
+    if (def === undefined) continue; // retired challenge
+    if (wins.some((g) => def.check(g))) kept.push(id);
+  }
+  const allOthersCleared = CHALLENGES.every(
+    (c) => c.id === GRAND_HEGEMON_ID || kept.includes(c.id),
+  );
+  if (allOthersCleared) kept.push(GRAND_HEGEMON_ID);
+  const before = JSON.stringify(data.challenges ?? []);
+  const after = JSON.stringify(kept);
+  if (before !== after) {
+    data.challenges = kept;
+    saveRecords(data);
+  }
+  return data;
 }
 
 function saveRecords(data: LocalRecordsData): void {
