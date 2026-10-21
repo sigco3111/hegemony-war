@@ -934,5 +934,9 @@ export function homeHref(): string {
   if (siteHost !== undefined && window.location.host !== siteHost) {
     return `https://${siteHost}/`;
   }
+  // Hegemony: the Pages build serves under a repo subpath, so "/" would
+  // navigate off the site into a 404. Vite bakes the base path in at build
+  // time (PAGES_BASE).
+  if (ClientEnv.soloStatic()) return import.meta.env.BASE_URL;
   return "/";
 }
