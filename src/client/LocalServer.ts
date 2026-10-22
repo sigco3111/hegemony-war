@@ -240,7 +240,16 @@ export class LocalServer {
         return;
       }
       // Don't process non-pause intents during replays or while paused
-      if (this.lobbyConfig.gameRecord || this.paused) {
+      if (this.lobbyConfig.gameRecord) return;
+      if (this.paused) {
+        // 위임 설정·긴급 중지는 일시정지 중에도 접수해 재개 후 첫 턴에 적용한다
+        // (패널 표시와 엔진 상태가 어긋나지 않게).
+        if (
+          stampedIntent.type === "set_defense_delegation" ||
+          stampedIntent.type === "set_economy_delegation"
+        ) {
+          this.intents.push(stampedIntent);
+        }
         return;
       }
 
