@@ -168,8 +168,15 @@ export class DelegationPanel extends LitElement implements Controller {
     if (this.enabled) this.emitSettings();
   }
 
+  /**
+   * Every frame, not 200ms: updatesSinceLastTick() only holds the LATEST
+   * engine tick's updates, so a 200ms interval silently dropped every
+   * second DelegationNote when builds landed on consecutive ticks. The
+   * note collection below dedupes by engine tick instead; the status
+   * refresh keeps its own 200ms throttle.
+   */
   getTickIntervalMs() {
-    return 200;
+    return 0;
   }
 
   private isSolo(): boolean {
@@ -178,25 +185,36 @@ export class DelegationPanel extends LitElement implements Controller {
     );
   }
 
+  /** Last engine tick whose DelegationNotes were collected (dedupe). */
+  private lastCollectedTick = -1;
+  private lastStatusRefreshMs = 0;
+
   tick() {
     if (this.game === undefined || this.game === null) return;
     if (!this.isSolo()) return;
     if (this.game.inSpawnPhase()) return;
-    const updates = this.game.updatesSinceLastTick();
-    const notes = (updates?.[GameUpdateType.DelegationNote] ??
-      []) as DelegationNoteUpdate[];
-    if (notes.length > 0) {
-      const t = this.game.ticks();
-      const fresh: DelegationAction[] = notes.map((n) => ({
-        tick: t,
-        unit: n.unit,
-        cost: n.cost,
-      }));
-      for (const f of fresh) this.totalSpent += f.cost;
-      this.actions = [...fresh, ...this.actions].slice(0, MAX_HISTORY);
+    const t = this.game.ticks();
+    if (t !== this.lastCollectedTick) {
+      this.lastCollectedTick = t;
+      const updates = this.game.updatesSinceLastTick();
+      const notes = (updates?.[GameUpdateType.DelegationNote] ??
+        []) as DelegationNoteUpdate[];
+      if (notes.length > 0) {
+        const fresh: DelegationAction[] = notes.map((n) => ({
+          tick: t,
+          unit: n.unit,
+          cost: n.cost,
+        }));
+        for (const f of fresh) this.totalSpent += f.cost;
+        this.actions = [...fresh, ...this.actions].slice(0, MAX_HISTORY);
+      }
     }
-    void this.refreshStatus();
-    this.refreshEconStatus();
+    const now = performance.now();
+    if (now - this.lastStatusRefreshMs >= 200) {
+      this.lastStatusRefreshMs = now;
+      void this.refreshStatus();
+      this.refreshEconStatus();
+    }
   }
 
   /** Engine mirror: UNDER_ATTACK_THREAT_RATIO in DefensePostPlacement. */
