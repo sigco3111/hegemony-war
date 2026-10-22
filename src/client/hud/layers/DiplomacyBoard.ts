@@ -13,6 +13,10 @@ import {
   SendAllianceRequestIntentEvent,
   SendBreakAllianceIntentEvent,
 } from "../../Transport";
+import {
+  GoToPlayerEvent,
+  GoToPositionEvent,
+} from "../../TransformHandler";
 import { translateText } from "../../Utils";
 import { GameView, PlayerView } from "../../view";
 
@@ -79,6 +83,37 @@ export class DiplomacyBoard extends LitElement implements Controller {
       class="w-2.5 h-2.5 rounded-sm shrink-0 inline-block"
       style="background:${p.territoryColor().toRgbString()}"
     ></span>`;
+  }
+
+  // 개선 8: clicking an entry jumps the camera there so the player can
+  // respond immediately; the board closes itself on the way out.
+  private goToPlayer(p: PlayerView) {
+    this.eventBus.emit(new GoToPlayerEvent(p));
+    this.show = false;
+  }
+
+  private goToThreat(me: PlayerView, attacker: PlayerView) {
+    const attack = me
+      .incomingAttacks()
+      .find((a) => !a.retreating && a.attackerID === attacker.smallID());
+    if (attack === undefined) {
+      this.goToPlayer(attacker);
+      return;
+    }
+    // Prefer the front-line cluster (where my land is being taken); fall
+    // back to the attacker's capital when positions are unavailable.
+    attacker
+      .attackClusteredPositions(attack.id)
+      .then((clusters) => {
+        const pos = clusters[0]?.positions[0];
+        if (pos !== undefined) {
+          this.eventBus.emit(new GoToPositionEvent(pos.x, pos.y));
+          this.show = false;
+        } else {
+          this.goToPlayer(attacker);
+        }
+      })
+      .catch(() => this.goToPlayer(attacker));
   }
 
   private nameSpan(p: PlayerView): TemplateResult {
@@ -153,8 +188,19 @@ export class DiplomacyBoard extends LitElement implements Controller {
         </h3>
         ${leader !== null && leaderPct !== null
           ? html`<div
-              class="mb-2 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-200"
+              class="mb-2 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-200 cursor-pointer hover:bg-red-500/20 transition-colors"
+              role="button"
+              tabindex="0"
+              title=${translateText("diplomacy_board.goto_hint")}
+              @click=${() => this.goToPlayer(leader)}
+              @keydown=${(e: KeyboardEvent) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  this.goToPlayer(leader);
+                }
+              }}
             >
+              ⌖
               ${translateText("diplomacy_board.hegemon", {
                 name: leader.name(),
                 pct: leaderPct,
@@ -168,9 +214,22 @@ export class DiplomacyBoard extends LitElement implements Controller {
           : html`<div class="flex flex-col gap-1">
               ${attackers.map(
                 ({ p, troops }) => html`
-                  <div class="flex items-center gap-2 text-xs">
+                  <div
+                    class="flex items-center gap-2 text-xs px-2 py-1.5 -mx-2 rounded-lg cursor-pointer hover:bg-white/5 transition-colors"
+                    role="button"
+                    tabindex="0"
+                    title=${translateText("diplomacy_board.goto_hint")}
+                    @click=${() => this.goToThreat(me, p)}
+                    @keydown=${(e: KeyboardEvent) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        this.goToThreat(me, p);
+                      }
+                    }}
+                  >
                     ${this.chip(p)}
                     <span class="text-white/85 truncate">${p.name()}</span>
+                    <span class="text-white/30">⌖</span>
                     <span class="ml-auto text-red-300 tabular-nums"
                       >${Math.round(troops).toLocaleString()}</span
                     >
@@ -228,8 +287,16 @@ export class DiplomacyBoard extends LitElement implements Controller {
                 (r) => html`
                   <div
                     class="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg ${r.mine
-                      ? "bg-emerald-500/10 border border-emerald-400/30"
+                      ? "bg-emerald-500/10 border border-emerald-400/30 cursor-pointer hover:bg-emerald-500/20 transition-colors"
                       : ""}"
+                    role=${r.mine ? "button" : nothing}
+                    title=${r.mine
+                      ? translateText("diplomacy_board.goto_hint")
+                      : nothing}
+                    @click=${r.mine
+                      ? () =>
+                          this.goToPlayer(r.a.id() === me.id() ? r.b : r.a)
+                      : nothing}
                   >
                     ${this.chip(r.a)} ${this.nameSpan(r.a)}
                     <span class="text-white/40">↔</span>
@@ -286,7 +353,17 @@ export class DiplomacyBoard extends LitElement implements Controller {
     const alliancesOn = !this.game.config().disableAlliances();
     return html`
       <div
-        class="flex flex-col gap-1 px-2 py-2 rounded-lg hover:bg-white/5 border border-white/5"
+        class="flex flex-col gap-1 px-2 py-2 rounded-lg hover:bg-white/5 border border-white/5 cursor-pointer transition-colors"
+        role="button"
+        tabindex="0"
+        title=${translateText("diplomacy_board.goto_hint")}
+        @click=${() => this.goToPlayer(other)}
+        @keydown=${(e: KeyboardEvent) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            this.goToPlayer(other);
+          }
+        }}
       >
         <div class="flex items-center gap-2 text-xs min-w-0">
           ${this.chip(other)}
@@ -384,9 +461,14 @@ export class DiplomacyBoard extends LitElement implements Controller {
           <div
             class="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-slate-900/95 border-b border-white/10"
           >
-            <span class="text-sm font-bold text-white uppercase tracking-wider"
-              >${translateText("diplomacy_board.title")}</span
-            >
+            <span class="flex flex-col">
+              <span class="text-sm font-bold text-white uppercase tracking-wider"
+                >${translateText("diplomacy_board.title")}</span
+              >
+              <span class="text-[10px] text-white/40 normal-case font-normal"
+                >${translateText("diplomacy_board.goto_hint")}</span
+              >
+            </span>
             <button
               class="text-white/50 hover:text-white text-lg leading-none px-2 cursor-pointer"
               @click=${() => (this.show = false)}

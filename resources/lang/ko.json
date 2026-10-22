@@ -2583,6 +2583,10 @@
     "break": "동맹 파기",
     "waiting_reply": "응답 대기 중",
     "allies_of": "동맹: {list}",
-    "disabled": "이 게임은 동맹이 꺼져 있습니다"
+    "disabled": "이 게임은 동맹이 꺼져 있습니다",
+    "goto_hint": "항목을 누르면 지도에서 해당 위치로 이동합니다"
+  },
+  "diplomacy_overlay": {
+    "sidebar_title": "지도 외교 표시"
   }
 }

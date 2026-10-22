@@ -484,6 +484,14 @@ export class UserSettings {
     return this.getBool("settings.attackingTroopsOverlay", true);
   }
 
+  diplomacyMapOverlay() {
+    return this.getBool("settings.diplomacyMapOverlay", true);
+  }
+
+  setDiplomacyMapOverlay(v: boolean) {
+    this.setBool("settings.diplomacyMapOverlay", v);
+  }
+
   toggleAttackingTroopsOverlay() {
     this.setBool(
       "settings.attackingTroopsOverlay",

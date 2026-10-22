@@ -2927,6 +2927,10 @@
     "break": "Break alliance",
     "waiting_reply": "Awaiting reply",
     "allies_of": "Allies: {list}",
-    "disabled": "Alliances are disabled in this game"
+    "disabled": "Alliances are disabled in this game",
+    "goto_hint": "Click an entry to jump to it on the map"
+  },
+  "diplomacy_overlay": {
+    "sidebar_title": "Map diplomacy markers"
   }
 }

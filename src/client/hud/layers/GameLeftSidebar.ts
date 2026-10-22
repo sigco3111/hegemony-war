@@ -20,6 +20,10 @@ import {
   WarPlanChangedEvent,
 } from "../../WarPlan";
 import { ToggleDiplomacyBoardEvent } from "./DiplomacyBoard";
+import {
+  DiplomacyOverlayStatusEvent,
+  ToggleDiplomacyOverlayEvent,
+} from "../../DiplomacyMarkers";
 import { ToggleWarDashboardEvent } from "./WarDashboard";
 import "./PlayerStats";
 import type { PlayerStats } from "./PlayerStats";
@@ -53,6 +57,10 @@ export class GameLeftSidebar extends LitElement implements Controller {
   private planQueuedCount = 0;
   @state()
   private planExecuting = false;
+  @state()
+  private diplomacyOverlayOn = true;
+  @state()
+  private diplomacyOverlayAttackers = 0;
 
   private playerColor: Colord = new Colord("#FFFFFF");
   @property({ attribute: false }) public game: GameView | null = null;
@@ -79,6 +87,11 @@ export class GameLeftSidebar extends LitElement implements Controller {
     this.eventBus?.on(WarPlanChangedEvent, (e) => {
       this.planQueuedCount = e.queuedCount;
       this.planExecuting = e.executing;
+    });
+    // 개선 8: map overlay toggle state + attacker badge.
+    this.eventBus?.on(DiplomacyOverlayStatusEvent, (e) => {
+      this.diplomacyOverlayOn = e.visible;
+      this.diplomacyOverlayAttackers = e.attackerCount;
     });
     if (this.isTeamGame) {
       this.isPlayerTeamLabelVisible = true;
@@ -155,6 +168,12 @@ export class GameLeftSidebar extends LitElement implements Controller {
     this.eventBus?.emit(new ToggleDiplomacyBoardEvent(false));
     this.eventBus?.emit(new ToggleWarPlanPanelEvent(false));
     this.eventBus?.emit(new ToggleDelegationPanelEvent());
+  }
+
+  // Hegemony 개선8: map diplomacy/threat overlay (지도 표시). Not a
+  // panel — toggling it never closes the other overlays.
+  private toggleDiplomacyOverlay(): void {
+    this.eventBus?.emit(new ToggleDiplomacyOverlayEvent());
   }
 
   // Hegemony 개선7: the pause operation plan (작전) panel.
@@ -359,6 +378,56 @@ export class GameLeftSidebar extends LitElement implements Controller {
                           : "bg-sky-600"} text-white text-[10px] font-bold leading-4 text-center tabular-nums"
                       >
                         ${this.planQueuedCount}
+                      </span>`
+                    : null}
+                </div>
+                <div
+                  class="relative cursor-pointer p-0.5 border rounded-md transition-colors ${this
+                    .diplomacyOverlayOn
+                    ? "bg-emerald-700/60 hover:bg-emerald-600/60 border-emerald-400"
+                    : "bg-gray-700/50 hover:bg-gray-600 border-slate-500"}"
+                  @click=${this.toggleDiplomacyOverlay}
+                  role="button"
+                  tabindex="0"
+                  title=${translateText("diplomacy_overlay.sidebar_title")}
+                  @keydown=${(e: KeyboardEvent) => {
+                    if (
+                      e.key === "Enter" ||
+                      e.key === " " ||
+                      e.code === "Space"
+                    ) {
+                      e.preventDefault();
+                      this.toggleDiplomacyOverlay();
+                    }
+                  }}
+                >
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M5 2.5v15"
+                      stroke="#fff"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                    />
+                    <path
+                      d="M5 3.5h10l-2.75 3.5L15 10.5H5"
+                      stroke="#fff"
+                      stroke-width="1.6"
+                      stroke-linejoin="round"
+                      fill="none"
+                    />
+                  </svg>
+                  ${this.diplomacyOverlayOn &&
+                  this.diplomacyOverlayAttackers > 0
+                    ? html`<span
+                        class="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold leading-4 text-center tabular-nums"
+                      >
+                        ${this.diplomacyOverlayAttackers}
                       </span>`
                     : null}
                 </div>
