@@ -65,9 +65,10 @@ export interface ImportPlan {
   newMedals: number;
   // Challenge clears the file would add (including derived meta challenge).
   newChallenges: number;
-  // Games kept after the merge, once the 200-game cap is applied.
+  // Games in the history after the merge (existing games are never cut).
   gamesAfterMerge: number;
-  // Newest-first cap fallout: merged games that won't fit the history.
+  // Of the file's new games, how many won't fit the history cap and are
+  // left out (the file's oldest first). Never an existing game.
   droppedByCap: number;
 }
 
@@ -266,20 +267,28 @@ export function parseBackup(text: string): ParseBackupResult {
 
 /**
  * Merges an imported store onto the current one. Current data always wins
- * on conflict: existing games stay, existing proofs stay, and nothing is
- * ever removed. Games are re-sorted newest-first and capped at
- * MAX_RECORD_GAMES, so the merge can only trim the oldest history entries —
- * the same trimming normal play already applies.
+ * on conflict: existing games stay, existing proofs stay, and nothing the
+ * user already has is ever removed — an import can only ADD.
+ *
+ * The history cap is enforced against the file, not against existing
+ * records: when the current history already fills MAX_RECORD_GAMES slots,
+ * only the file's own new games are left out (its oldest first), never an
+ * existing game. Medals, challenges and clear proofs are not capped at all
+ * and always merge fully.
  */
 export function mergeRecords(
   current: LocalRecordsData,
   imported: LocalRecordsData,
 ): LocalRecordsData {
   const seen = new Set(current.games.map((g) => g.id));
-  const additions = imported.games.filter((g) => !seen.has(g.id));
-  const games = [...current.games, ...additions]
-    .sort((a, b) => b.endedAt - a.endedAt)
-    .slice(0, MAX_RECORD_GAMES);
+  const additions = imported.games
+    .filter((g) => !seen.has(g.id))
+    .sort((a, b) => b.endedAt - a.endedAt);
+  const slots = Math.max(0, MAX_RECORD_GAMES - current.games.length);
+  const accepted = additions.slice(0, slots);
+  const games = [...current.games, ...accepted].sort(
+    (a, b) => b.endedAt - a.endedAt,
+  );
 
   const wins: LocalRecordsData["wins"] = {};
   for (const source of [current.wins, imported.wins]) {
@@ -338,8 +347,12 @@ export function planImport(
   imported: LocalRecordsData,
 ): ImportPlan {
   const seen = new Set(current.games.map((g) => g.id));
-  const newGames = imported.games.filter((g) => !seen.has(g.id)).length;
-  const duplicateGames = imported.games.length - newGames;
+  const newGamesAll = imported.games.filter((g) => !seen.has(g.id)).length;
+  const duplicateGames = imported.games.length - newGamesAll;
+  // Only the file's own games are ever left out by the cap; existing
+  // history is pinned, so droppedByCap is always imported-only overflow.
+  const slots = Math.max(0, MAX_RECORD_GAMES - current.games.length);
+  const newGames = Math.min(newGamesAll, slots);
 
   let newMedals = 0;
   for (const [mapName, difficulties] of Object.entries(imported.wins ?? {})) {
@@ -355,14 +368,13 @@ export function planImport(
     (id) => !before.has(id),
   ).length;
 
-  const total = current.games.length + newGames;
   return {
     newGames,
     duplicateGames,
     newMedals,
     newChallenges,
-    gamesAfterMerge: Math.min(total, MAX_RECORD_GAMES),
-    droppedByCap: Math.max(0, total - MAX_RECORD_GAMES),
+    gamesAfterMerge: current.games.length + newGames,
+    droppedByCap: newGamesAll - newGames,
   };
 }
 

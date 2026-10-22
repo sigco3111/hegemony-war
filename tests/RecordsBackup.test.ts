@@ -177,21 +177,51 @@ describe("mergeRecords", () => {
     expect(merged.games.map((g) => g.id)).toEqual(["b", "c", "a"]);
   });
 
-  it("applies the history cap to the merged list", () => {
+  it("pins existing games: a full history drops only the file's overflow", () => {
     const current = store({
       games: Array.from({ length: MAX_RECORD_GAMES }, (_, i) =>
         game({ id: `cur${i}`, endedAt: 10_000 + i }),
       ),
     });
     const imported = store({
-      games: [game({ id: "new", endedAt: 20_000 })],
+      games: [
+        game({ id: "new-newer", endedAt: 20_000 }), // newer than all current
+        game({ id: "new-older", endedAt: 5_000 }),
+      ],
+      wins: { [GameMapType.Europe]: [Difficulty.Easy] },
+      challenges: ["korea_spirit"],
+      challengeProofs: { korea_spirit: game({ id: "proof-game" }) },
+    });
+    const merged = mergeRecords(current, imported);
+    // Every existing game survives — even though the imported one is newer.
+    expect(merged.games).toHaveLength(MAX_RECORD_GAMES);
+    expect(merged.games.some((g) => g.id === "cur0")).toBe(true);
+    expect(merged.games.some((g) => g.id === "cur199")).toBe(true);
+    expect(merged.games.some((g) => g.id === "new-newer")).toBe(false);
+    // Medals, challenges and proofs are not capped: all still merge.
+    expect(merged.wins[GameMapType.Europe]).toEqual([Difficulty.Easy]);
+    expect(merged.challenges).toContain("korea_spirit");
+    expect(merged.challengeProofs?.korea_spirit.id).toBe("proof-game");
+  });
+
+  it("fills free history slots with the file's newest games first", () => {
+    const current = store({
+      games: Array.from({ length: MAX_RECORD_GAMES - 2 }, (_, i) =>
+        game({ id: `cur${i}`, endedAt: 10_000 + i }),
+      ),
+    });
+    const imported = store({
+      games: [
+        game({ id: "imp-old", endedAt: 1_000 }),
+        game({ id: "imp-new", endedAt: 30_000 }),
+        game({ id: "imp-mid", endedAt: 20_000 }),
+      ],
     });
     const merged = mergeRecords(current, imported);
     expect(merged.games).toHaveLength(MAX_RECORD_GAMES);
-    expect(merged.games[0].id).toBe("new");
-    // The oldest current game dropped off, nothing newer was lost.
-    expect(merged.games.some((g) => g.id === "cur0")).toBe(false);
-    expect(merged.games.some((g) => g.id === "cur1")).toBe(true);
+    expect(merged.games.some((g) => g.id === "imp-new")).toBe(true);
+    expect(merged.games.some((g) => g.id === "imp-mid")).toBe(true);
+    expect(merged.games.some((g) => g.id === "imp-old")).toBe(false);
   });
 
   it("unions medals and challenges, preferring current proofs", () => {
@@ -277,6 +307,23 @@ describe("planImport", () => {
     expect(plan.newChallenges).toBe(1);
     expect(plan.gamesAfterMerge).toBe(2);
     expect(plan.droppedByCap).toBe(0);
+  });
+
+  it("reports imported-only overflow when the history is full", () => {
+    const current = store({
+      games: Array.from({ length: MAX_RECORD_GAMES - 3 }, (_, i) =>
+        game({ id: `cur${i}`, endedAt: 10_000 + i }),
+      ),
+    });
+    const imported = store({
+      games: Array.from({ length: 10 }, (_, i) =>
+        game({ id: `imp${i}`, endedAt: 20_000 + i }),
+      ),
+    });
+    const plan = planImport(current, imported);
+    expect(plan.newGames).toBe(3);
+    expect(plan.droppedByCap).toBe(7);
+    expect(plan.gamesAfterMerge).toBe(MAX_RECORD_GAMES);
   });
 
   it("reports an all-duplicate import as a no-op", () => {
