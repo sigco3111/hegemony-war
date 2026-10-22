@@ -767,6 +767,7 @@ export const centerButtonElement: CenterButtonElement = {
         params.playerActionHandler.handleAttack(
           params.myPlayer,
           params.selected?.id() ?? null,
+          params.tile,
         );
       }
     }

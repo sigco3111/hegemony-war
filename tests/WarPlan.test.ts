@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clampPlanRatio,
   planOrderTroops,
+  queuedPlanRows,
   WarPlanQueue,
 } from "../src/client/WarPlan";
 
@@ -82,5 +83,65 @@ describe("WarPlanQueue", () => {
     expect(q.finishedCount()).toBe(2);
     q.clearFinished();
     expect(q.all().map((o) => o.id)).toEqual([c.id]);
+  });
+
+  it("keeps the clicked tile on land attacks for map markers", () => {
+    const q = new WarPlanQueue();
+    const land = q.add("attack", "p1", 4242, 50);
+    const boat = q.add("boat", null, 777, 25);
+    const noTile = q.add("attack", "p2", null, 10);
+    expect(land.dstTile).toBe(4242);
+    expect(boat.dstTile).toBe(777);
+    expect(noTile.dstTile).toBeNull();
+  });
+});
+
+describe("queuedPlanRows (개선 10 map markers)", () => {
+  it("numbers markers by list row so map and panel match", () => {
+    const q = new WarPlanQueue();
+    const a = q.add("attack", "a", 11, 10);
+    const b = q.add("attack", "b", 22, 10);
+    const c = q.add("boat", null, 33, 10);
+    expect(
+      queuedPlanRows(q.all()).map(({ order, row }) => [order.id, row]),
+    ).toEqual([
+      [a.id, 1],
+      [b.id, 2],
+      [c.id, 3],
+    ]);
+  });
+
+  it("renumbers after reorder and remove", () => {
+    const q = new WarPlanQueue();
+    const a = q.add("attack", "a", null, 10);
+    const b = q.add("attack", "b", null, 10);
+    const c = q.add("attack", "c", null, 10);
+    q.move(c.id, -1);
+    expect(queuedPlanRows(q.all()).map(({ row }) => row)).toEqual([1, 2, 3]);
+    expect(
+      queuedPlanRows(q.all()).map(({ order }) => order.targetID),
+    ).toEqual(["a", "c", "b"]);
+    q.remove(a.id);
+    expect(
+      queuedPlanRows(q.all()).map(({ order, row }) => [order.targetID, row]),
+    ).toEqual([
+      ["c", 1],
+      ["b", 2],
+    ]);
+    expect(b.id).not.toBe(a.id);
+  });
+
+  it("excludes finished orders but keeps their row numbers stable", () => {
+    const q = new WarPlanQueue();
+    const a = q.add("attack", "a", null, 10);
+    const b = q.add("attack", "b", null, 10);
+    const c = q.add("attack", "c", null, 10);
+    a.state = "sent";
+    b.state = "skipped";
+    const rows = queuedPlanRows(q.all());
+    expect(rows).toHaveLength(1);
+    expect(rows[0].order.id).toBe(c.id);
+    // Row 3 on the map matches row 3 in the list, not a renumbered 1.
+    expect(rows[0].row).toBe(3);
   });
 });

@@ -19,7 +19,10 @@ export interface PlanOrder {
   kind: PlanOrderKind;
   /** null = unclaimed (neutral) land; land attacks only. */
   targetID: PlayerID | null;
-  /** Boat orders only: the destination tile clicked. */
+  /**
+   * Boat orders: the destination tile. Land attacks: the clicked tile when
+   * known (marker position); null falls back to the target's name location.
+   */
   dstTile: TileRef | null;
   /** Percent (1-100) of the live troop count, applied at execution time. */
   ratioPercent: number;
@@ -34,13 +37,43 @@ export const PLAN_RATIO_MIN = 1;
 export const PLAN_RATIO_MAX = 100;
 export const PLAN_RATIO_STEP = 5;
 
-/** Emitted by PlayerActionHandler when an attack click lands while paused. */
+/**
+ * Emitted by PlayerActionHandler when an attack click lands while paused.
+ * For land attacks dstTile carries the clicked tile (when known) so the map
+ * can mark exactly where the player aimed; for boat orders it is the
+ * transport destination.
+ */
 export class QueuePlanOrderEvent {
   constructor(
     public readonly kind: PlanOrderKind,
     public readonly targetID: PlayerID | null,
     public readonly dstTile: TileRef | null,
     public readonly ratioPercent: number,
+  ) {}
+}
+
+/**
+ * 개선 10: a queued order's map marker. `row` is the 1-based row number in
+ * the panel list, so the number on the map always matches the number the
+ * player sees in the 작전 panel.
+ */
+export interface WarPlanMarker {
+  id: number;
+  row: number;
+  kind: PlanOrderKind;
+  x: number;
+  y: number;
+}
+
+/**
+ * Panel → map layer: the current queued-order markers (empty array clears
+ * the overlay). highlightId pulses one badge right after the player located
+ * it from the list.
+ */
+export class WarPlanMarkersEvent {
+  constructor(
+    public readonly markers: WarPlanMarker[],
+    public readonly highlightId: number | null = null,
   ) {}
 }
 
@@ -66,6 +99,22 @@ export function clampPlanRatio(pct: number): number {
 export function planOrderTroops(ratioPercent: number, troops: number): number {
   if (!Number.isFinite(troops) || troops <= 0) return 0;
   return Math.floor((clampPlanRatio(ratioPercent) / 100) * troops);
+}
+
+/**
+ * Queued orders paired with their 1-based row number in the full list.
+ * Row numbers match the panel's row labels, so a marker on the map reads
+ * exactly like its list row; finished orders keep the list's numbering
+ * stable but get no marker.
+ */
+export function queuedPlanRows(
+  orders: readonly PlanOrder[],
+): { order: PlanOrder; row: number }[] {
+  const out: { order: PlanOrder; row: number }[] = [];
+  orders.forEach((o, i) => {
+    if (o.state === "queued") out.push({ order: o, row: i + 1 });
+  });
+  return out;
 }
 
 export class WarPlanQueue {

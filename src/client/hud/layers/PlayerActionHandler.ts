@@ -46,10 +46,15 @@ export class PlayerActionHandler {
     return clampPlanRatio(this.uiState.attackRatio * 100);
   }
 
-  handleAttack(player: PlayerView, targetId: string | null) {
+  handleAttack(
+    player: PlayerView,
+    targetId: string | null,
+    tile: TileRef | null = null,
+  ) {
     if (this.shouldQueuePlan()) {
+      // 개선 10: keep the clicked tile so the plan map can mark the exact aim.
       this.eventBus.emit(
-        new QueuePlanOrderEvent("attack", targetId, null, this.planRatioPercent()),
+        new QueuePlanOrderEvent("attack", targetId, tile, this.planRatioPercent()),
       );
       return;
     }

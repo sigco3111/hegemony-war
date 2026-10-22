@@ -13,12 +13,15 @@ import {
 import { UIState } from "../../UIState";
 import { translateText } from "../../Utils";
 import { GameView, PlayerView } from "../../view";
+import { GoToPositionEvent } from "../../TransformHandler";
 import {
   PlanOrder,
   PLAN_RATIO_STEP,
   QueuePlanOrderEvent,
   ToggleWarPlanPanelEvent,
   WarPlanChangedEvent,
+  WarPlanMarker,
+  WarPlanMarkersEvent,
   WarPlanQueue,
 } from "../../WarPlan";
 
@@ -48,6 +51,9 @@ export class WarPlanPanel extends LitElement implements Controller {
   private queue = new WarPlanQueue();
   /** displayName cache so rows survive their target's destruction. */
   private nameCache = new Map<PlayerID, string>();
+  /** Badge pulsing on the map right after a row's locate click. */
+  private highlightId: number | null = null;
+  private highlightTimer: number | null = null;
   private boatDispatchInFlight = false;
   private lastEmittedCount = -1;
   private lastEmittedExecuting = false;
@@ -65,10 +71,17 @@ export class WarPlanPanel extends LitElement implements Controller {
     this.paused = false;
     this.show = false;
     this.boatDispatchInFlight = false;
+    this.highlightId = null;
+    if (this.highlightTimer !== null) {
+      window.clearTimeout(this.highlightTimer);
+      this.highlightTimer = null;
+    }
+    this.emitMarkers();
 
     this.eventBus.on(QueuePlanOrderEvent, (e) => {
       this.queue.add(e.kind, e.targetID, e.dstTile, e.ratioPercent);
       this.version++;
+      this.emitMarkers();
     });
     this.eventBus.on(ToggleWarPlanPanelEvent, (e) => {
       this.show = e.isVisible ?? !this.show;
@@ -178,13 +191,80 @@ export class WarPlanPanel extends LitElement implements Controller {
     }
     order.state = "sent";
     order.sentTroops = troops;
+    if (this.highlightId === order.id) this.highlightId = null;
     this.version++;
+    this.emitMarkers();
   }
 
   private skip(order: PlanOrder, reason: string): void {
     order.state = "skipped";
     order.skipReason = reason;
+    if (this.highlightId === order.id) this.highlightId = null;
     this.version++;
+    this.emitMarkers();
+  }
+
+  /**
+   * 개선 10: where an order sits on the map. Land attacks use the clicked
+   * tile when the click carried one; otherwise the target's name location
+   * (which tracks its remaining territory). Boat orders use the destination.
+   */
+  private markerPosition(order: PlanOrder): { x: number; y: number } | null {
+    if (this.game === undefined || this.game === null) return null;
+    if (order.dstTile !== null && order.dstTile !== undefined) {
+      return { x: this.game.x(order.dstTile), y: this.game.y(order.dstTile) };
+    }
+    if (order.targetID !== null) {
+      try {
+        const loc = this.game.player(order.targetID).nameLocation();
+        if (loc !== null && loc !== undefined) return { x: loc.x, y: loc.y };
+      } catch {
+        // Target fallen and never cached: no marker.
+      }
+    }
+    return null;
+  }
+
+  /** Broadcast the queued-order badges to the map layer. */
+  private emitMarkers(): void {
+    if (
+      this.eventBus === undefined ||
+      this.game === undefined ||
+      this.game === null
+    ) {
+      return;
+    }
+    const markers: WarPlanMarker[] = [];
+    this.queue.all().forEach((o, i) => {
+      if (o.state !== "queued") return;
+      const pos = this.markerPosition(o);
+      if (pos === null) return;
+      markers.push({ id: o.id, row: i + 1, kind: o.kind, x: pos.x, y: pos.y });
+    });
+    this.eventBus.emit(new WarPlanMarkersEvent(markers, this.highlightId));
+  }
+
+  /**
+   * 개선 10: clicking a row glides the camera to the order's target and
+   * pulses its badge, so a plan can be reviewed and revised on the map.
+   */
+  private locateOrder(order: PlanOrder): void {
+    const pos = this.markerPosition(order);
+    if (pos === null) return;
+    this.eventBus.emit(new GoToPositionEvent(pos.x, pos.y));
+    this.show = false;
+    if (order.state === "queued") {
+      this.highlightId = order.id;
+      this.emitMarkers();
+      if (this.highlightTimer !== null) {
+        window.clearTimeout(this.highlightTimer);
+      }
+      this.highlightTimer = window.setTimeout(() => {
+        this.highlightTimer = null;
+        this.highlightId = null;
+        this.emitMarkers();
+      }, 2600);
+    }
   }
 
   private targetName(order: PlanOrder): string {
@@ -214,11 +294,13 @@ export class WarPlanPanel extends LitElement implements Controller {
     const ratioPct = order.ratioPercent;
     return html`
       <div
-        class="flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg ${isQueued
+        class="flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg cursor-pointer hover:ring-1 hover:ring-amber-300/60 ${isQueued
           ? "bg-white/5"
           : order.state === "sent"
             ? "bg-emerald-900/30"
             : "bg-red-900/20"}"
+        title=${translateText("war_plan.locate")}
+        @click=${() => this.locateOrder(order)}
       >
         <span class="text-white/40 tabular-nums shrink-0 w-5 text-center"
           >${index + 1}</span
@@ -229,7 +311,10 @@ export class WarPlanPanel extends LitElement implements Controller {
         <span class="text-white/85 truncate">${this.targetName(order)}</span>
         ${isQueued
           ? html`
-              <span class="flex items-center gap-0.5 shrink-0 ml-auto">
+              <span
+                class="flex items-center gap-0.5 shrink-0 ml-auto"
+                @click=${(e: Event) => e.stopPropagation()}
+              >
                 <button
                   class="w-5 h-5 rounded bg-slate-700 hover:bg-slate-600 text-white/80 cursor-pointer leading-none"
                   title="-${PLAN_RATIO_STEP}%"
@@ -259,7 +344,10 @@ export class WarPlanPanel extends LitElement implements Controller {
                   troops: renderTroops(this.estimateTroops(order)),
                 })}</span
               >
-              <span class="flex items-center gap-0.5 shrink-0">
+              <span
+                class="flex items-center gap-0.5 shrink-0"
+                @click=${(e: Event) => e.stopPropagation()}
+              >
                 <button
                   class="w-5 h-5 rounded bg-slate-700 text-white/80 leading-none ${index ===
                   0
@@ -270,6 +358,7 @@ export class WarPlanPanel extends LitElement implements Controller {
                   @click=${() => {
                     this.queue.move(order.id, -1);
                     this.version++;
+                    this.emitMarkers();
                   }}
                 >
                   ↑
@@ -284,6 +373,7 @@ export class WarPlanPanel extends LitElement implements Controller {
                   @click=${() => {
                     this.queue.move(order.id, 1);
                     this.version++;
+                    this.emitMarkers();
                   }}
                 >
                   ↓
@@ -292,8 +382,10 @@ export class WarPlanPanel extends LitElement implements Controller {
                   class="w-5 h-5 rounded bg-slate-700 hover:bg-red-700 text-white/80 cursor-pointer leading-none"
                   title=${translateText("war_plan.remove")}
                   @click=${() => {
+                    if (this.highlightId === order.id) this.highlightId = null;
                     this.queue.remove(order.id);
                     this.version++;
+                    this.emitMarkers();
                   }}
                 >
                   ✕
@@ -302,6 +394,7 @@ export class WarPlanPanel extends LitElement implements Controller {
             `
           : html`
               <span
+                @click=${(e: Event) => e.stopPropagation()}
                 class="ml-auto shrink-0 tabular-nums ${order.state === "sent"
                   ? "text-emerald-300"
                   : "text-red-300/90"}"
@@ -395,6 +488,7 @@ export class WarPlanPanel extends LitElement implements Controller {
                         @click=${() => {
                           this.queue.clearFinished();
                           this.version++;
+                          this.emitMarkers();
                         }}
                       >
                         ${translateText("war_plan.clear_finished")}
@@ -405,7 +499,9 @@ export class WarPlanPanel extends LitElement implements Controller {
                     @click=${() => {
                       this.queue.clear();
                       this.executing = false;
+                      this.highlightId = null;
                       this.version++;
+                      this.emitMarkers();
                     }}
                   >
                     ${translateText("war_plan.clear_all")}

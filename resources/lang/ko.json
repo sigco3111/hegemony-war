@@ -2537,6 +2537,7 @@
     "heading": "일시정지 작전 계획",
     "kind_attack": "지상 공격",
     "kind_boat": "수송선 공격",
+      "locate": "지도에서 보기",
     "move_down": "아래로",
     "move_up": "위로",
     "neutral_target": "중립 지역",

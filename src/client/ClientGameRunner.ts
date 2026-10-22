@@ -1282,7 +1282,7 @@ export class ClientGameRunner {
               new QueuePlanOrderEvent(
                 "attack",
                 this.gameView.owner(tile).id(),
-                null,
+                tile,
                 clampPlanRatio(this.renderer.uiState.attackRatio * 100),
               ),
             );

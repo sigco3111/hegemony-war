@@ -2881,6 +2881,7 @@
     "heading": "Pause operation plan",
     "kind_attack": "Land attack",
     "kind_boat": "Transport ship attack",
+      "locate": "Show on map",
     "move_down": "Move down",
     "move_up": "Move up",
     "neutral_target": "Neutral land",

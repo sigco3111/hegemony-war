@@ -53,6 +53,7 @@ import { WarPlanPanel } from "./layers/WarPlanPanel";
 import { DiplomacyBoard } from "./layers/DiplomacyBoard";
 import { DiplomacyMapOverlay } from "./layers/DiplomacyMapOverlay";
 import { DelegationZoneLayer } from "./layers/DelegationZoneLayer";
+import { WarPlanMapLayer } from "./layers/WarPlanMapLayer";
 import { WarDashboard } from "./layers/WarDashboard";
 import { WinModal } from "./layers/WinModal";
 import { loadAllSprites } from "./SpriteLoader";
@@ -240,6 +241,16 @@ export function createRenderer(
   delegationZoneLayer.game = game;
   delegationZoneLayer.eventBus = eventBus;
   delegationZoneLayer.transform = transformHandler;
+
+  const warPlanMapLayer = document.querySelector(
+    "war-plan-map-layer",
+  ) as WarPlanMapLayer;
+  if (!(warPlanMapLayer instanceof WarPlanMapLayer)) {
+    console.error("war plan map layer not found");
+  }
+  warPlanMapLayer.game = game;
+  warPlanMapLayer.eventBus = eventBus;
+  warPlanMapLayer.transform = transformHandler;
 
   const delegationPanel = document.querySelector(
     "delegation-panel",
@@ -431,6 +442,7 @@ export function createRenderer(
     delegationZoneLayer,
     delegationPanel,
     warPlanPanel,
+    warPlanMapLayer,
     gameRightSidebar,
     controlPanel,
     playerInfo,
