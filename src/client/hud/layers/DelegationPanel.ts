@@ -16,6 +16,7 @@ import {
   GameUpdateType,
 } from "@openfront/engine-api/game/GameUpdates";
 import { EventBus } from "@openfront/shared/EventBus";
+import { consumeResumedDelegation } from "../../SaveGame";
 import { html, LitElement, nothing, TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { Controller } from "../../Controller";
@@ -100,6 +101,8 @@ export class DelegationPanel extends LitElement implements Controller {
 
   /** 개선 11: economy delegation (cities + factories) state. */
   @state() private econEnabled = false;
+  /** 긴급 중지로 꺼진 상태. 직접 다시 켤 때까지 안내를 보인다. */
+  @state() private emergencyStopped = false;
   @state() private econReservePercent = 50;
   @state() private econCities = true;
   @state() private econFactories = true;
@@ -211,11 +214,52 @@ export class DelegationPanel extends LitElement implements Controller {
   /** Last engine tick whose DelegationNotes were collected (dedupe). */
   private lastCollectedTick = -1;
   private lastStatusRefreshMs = 0;
+  // 이어하기: 저장된 위임 인텐트를 패널 상태로 되살리는 일은 한 번만 한다.
+  private resumeChecked = false;
+  private pendingDefAnchor = false;
+  private pendingEconAnchor = false;
+
+  /** 이어한 판이면 마지막 위임 설정을 패널에 복원한다(엔진은 턴 재생으로 이미 복원됨). */
+  private restoreFromResume(): void {
+    this.resumeChecked = true;
+    const r = consumeResumedDelegation();
+    if (r === null) return;
+    const d = r.defense;
+    if (d !== undefined) {
+      this.enabled = d.enabled;
+      this.reservePercent = d.reservePercent;
+      this.buildPosts = d.buildPosts ?? true;
+      this.buildSams = d.buildSams ?? true;
+      this.priority = d.priority ?? "reactive";
+      this.zoneTile = d.zoneTile ?? null;
+      this.pendingDefAnchor = d.enabled;
+      this.emitZoneChanged();
+    }
+    const e = r.economy;
+    if (e !== undefined) {
+      this.econEnabled = e.enabled;
+      this.econReservePercent = e.reservePercent;
+      this.econCities = e.buildCities ?? true;
+      this.econFactories = e.buildFactories ?? true;
+      this.econPriority = e.priority ?? "balanced";
+      this.econCityTarget = e.cityTarget ?? 0;
+      this.econFactoryTarget = e.factoryTarget ?? 0;
+      this.pendingEconAnchor = e.enabled;
+    }
+  }
+
+  /** 엔진이 알려 주는 실제 예비금으로 화면 쪽 앵커를 역산한다. */
+  private anchorFrom(st: { gold: number; ownReserve: number }, pct: number): bigint {
+    return pct > 0
+      ? (BigInt(Math.round(st.ownReserve)) * 100n) / BigInt(pct)
+      : BigInt(Math.round(st.gold));
+  }
 
   tick() {
     if (this.game === undefined || this.game === null) return;
     if (!this.isSolo()) return;
     if (this.game.inSpawnPhase()) return;
+    if (!this.resumeChecked) this.restoreFromResume();
     const t = this.game.ticks();
     if (t !== this.lastCollectedTick) {
       this.lastCollectedTick = t;
@@ -226,8 +270,19 @@ export class DelegationPanel extends LitElement implements Controller {
         []) as DelegationStatusUpdate[];
       for (const st of sts) {
         const d = { tick: t, status: st };
-        if (st.kind === "defense") this.defDecision = d;
-        else this.econDecision = d;
+        if (st.kind === "defense") {
+          this.defDecision = d;
+          if (this.pendingDefAnchor) {
+            this.pendingDefAnchor = false;
+            this.anchorGold = this.anchorFrom(st, this.reservePercent);
+          }
+        } else {
+          this.econDecision = d;
+          if (this.pendingEconAnchor) {
+            this.pendingEconAnchor = false;
+            this.econAnchorGold = this.anchorFrom(st, this.econReservePercent);
+          }
+        }
       }
       if (notes.length > 0) {
         const fresh: DelegationAction[] = notes.map((n) => ({
@@ -336,7 +391,20 @@ export class DelegationPanel extends LitElement implements Controller {
     this.econStatus = "watch";
   }
 
+  /**
+   * 긴급 중지: 방어·경제 위임을 한 번에 끈다. 건설 방향, 목표 수량, 예비금,
+   * 우선순위 같은 설정은 그대로 두고 다시 켜는 것도 직접 한다. 게임 일시정지와
+   * 무관하다. 기존 끄기 인텐트를 그대로 쓰므로 엔진은 건드리지 않는다.
+   */
+  private emergencyStop(): void {
+    if (!this.enabled && !this.econEnabled) return;
+    if (this.enabled) this.setEnabled(false);
+    if (this.econEnabled) this.setEconEnabled(false);
+    this.emergencyStopped = true;
+  }
+
   private setEnabled(on: boolean): void {
+    if (on) this.emergencyStopped = false;
     if (on && !this.enabled) {
       // Off→on: re-anchor the reserve basis to the current treasury.
       this.anchorGold = this.game.myPlayer()?.gold() ?? null;
@@ -376,6 +444,7 @@ export class DelegationPanel extends LitElement implements Controller {
   }
 
   private setEconEnabled(on: boolean): void {
+    if (on) this.emergencyStopped = false;
     if (on && !this.econEnabled) {
       // Off→on: re-anchor the reserve basis to the current treasury.
       this.econAnchorGold = this.game.myPlayer()?.gold() ?? null;
@@ -689,13 +758,32 @@ export class DelegationPanel extends LitElement implements Controller {
             <span class="text-sm font-bold text-white uppercase tracking-wider"
               >${translateText("delegation_panel.title")}</span
             >
-            <button
-              class="text-white/50 hover:text-white text-lg leading-none px-2 cursor-pointer"
-              @click=${() => (this.show = false)}
-            >
-              ✕
-            </button>
+            <div class="flex items-center gap-2">
+              <button
+                class="rounded-lg px-2 py-1 text-xs font-bold ${this.enabled ||
+                this.econEnabled
+                  ? "bg-red-600 hover:bg-red-500 text-white cursor-pointer"
+                  : "bg-slate-700 text-white/30 cursor-not-allowed"}"
+                ?disabled=${!this.enabled && !this.econEnabled}
+                @click=${() => this.emergencyStop()}
+              >
+                ${translateText("delegation_panel.emergency_stop")}
+              </button>
+              <button
+                class="text-white/50 hover:text-white text-lg leading-none px-2 cursor-pointer"
+                @click=${() => (this.show = false)}
+              >
+                ✕
+              </button>
+            </div>
           </div>
+          ${this.emergencyStopped && !this.enabled && !this.econEnabled
+            ? html`<div
+                class="px-4 py-2 text-xs text-red-200 bg-red-900/40 border-b border-red-500/30"
+              >
+                ${translateText("delegation_panel.emergency_stopped")}
+              </div>`
+            : nothing}
           <div class="flex flex-col gap-5 p-4">
             <section>
               <h3 class="text-xs font-bold text-white/60 uppercase mb-2">

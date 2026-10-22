@@ -692,7 +692,16 @@
     "title": "Support a Creator",
     "unsupport": "Unsupport"
   },
+  "save_resume": {
+    "title": "Resume saved match",
+    "resume": "Resume",
+    "discard": "Delete save",
+    "incompatible": "This match was saved by a different version and cannot be resumed. You can only delete it.",
+    "note": "Autosaves every 30s and on pause, tab switch or close. Stored only in this browser; resuming opens paused. Separate from records and backups."
+  },
   "delegation_panel": {
+    "emergency_stop": "Emergency stop",
+    "emergency_stopped": "Defense and economy delegation are both off. Targets, priority and reserve settings are kept; turn them back on yourself. This is separate from pausing the game.",
     "built_city": "Built a city",
     "built_factory": "Built a factory",
     "built_post": "Built a defense post",

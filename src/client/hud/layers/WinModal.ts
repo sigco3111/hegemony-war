@@ -60,6 +60,7 @@ import { SendWinnerEvent } from "../../Transport";
 import { GameView } from "../../view";
 import { ClientEnv } from "../../ClientEnv";
 import { recordSoloGameEnd } from "../../LocalRecords";
+import { markMatchOver } from "../../SaveGame";
 
 type LegendCeremonyModule = typeof import("../../components/LegendCeremony");
 
@@ -981,6 +982,7 @@ export class WinModal extends LitElement implements Controller {
     const config = this.game.config().gameConfig();
     if (config.gameType !== GameType.Singleplayer) return;
     this.recordedSoloResult = true;
+    markMatchOver(); // 끝난 판의 중간 저장은 지운다.
     this.clearedChallengesNow = recordSoloGameEnd({
       id: `${this.game.gameID()}`,
       endedAt: Date.now(),

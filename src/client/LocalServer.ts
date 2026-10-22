@@ -29,6 +29,14 @@ import {
   GameSpeedUpIntentEvent,
   ReplaySpeedChangeEvent,
 } from "./InputHandler";
+import {
+  buildSavedMatch,
+  isSaveBlocked,
+  markMatchOver,
+  setActiveGame,
+  takeResume,
+  writeSavedMatch,
+} from "./SaveGame";
 import { startSingleplayerHeartbeat } from "./SingleplayerHeartbeat";
 import {
   defaultReplaySpeedMultiplier,
@@ -66,6 +74,10 @@ export class LocalServer {
   private archived = false;
   private archiveInFlight = false;
 
+  // 이어하기: 저장에서 불러온 턴(해시 검증용)과 마지막 저장 시점.
+  private resumedTurns: Turn[] = [];
+  private lastSavedTurnCount = 0;
+  private saveListenersOn = false;
   private turnsExecuted = 0;
   private turnStartTime = 0;
 
@@ -136,6 +148,34 @@ export class LocalServer {
     }
 
     this.startedAt = Date.now();
+    const info = this.lobbyConfig.gameStartInfo;
+    if (info !== undefined) {
+      this.clientID = info.players[0]?.clientID;
+    if (!this.isReplay && !this.lobbyConfig.gameRecord) {
+      setActiveGame(info.gameID);
+      const saved = takeResume(info.gameID);
+      if (saved !== null) {
+        // 저장된 턴을 그대로 다시 먹여 같은 상태를 만든다(rejoin 경로).
+        this.turns = saved.turns;
+        this.resumedTurns = saved.turns;
+        this.lastSavedTurnCount = saved.turns.length;
+        // 따라잡은 뒤 일시정지 상태로 열어 상황을 보게 한다.
+        // (클라이언트에는 아직 아무것도 보내지 않았으므로 rejoin이 전부 전달한다.)
+        this.turns.push({
+          turnNumber: this.turns.length,
+          intents: [
+            {
+              type: "toggle_pause",
+              paused: true,
+              clientID: this.clientID,
+            } as StampedIntent,
+          ],
+        });
+        this.paused = true;
+      }
+      this.installSaveListeners();
+    }
+    }
     this.clientConnect();
     if (this.lobbyConfig.gameRecord) {
       this.replayTurns = decompressGameRecord(
@@ -190,6 +230,7 @@ export class LocalServer {
           this.intents.push(stampedIntent);
           this.endTurn();
           this.paused = true;
+          this.saveNow();
         } else {
           // Unpausing: clear pause flag before adding intent so next turn can execute
           this.paused = false;
@@ -211,6 +252,18 @@ export class LocalServer {
           // In singleplayer, only store hash every 100 turns to reduce size of game record.
           const turn = this.turns[clientMsg.turnNumber];
           if (turn) {
+            const saved = this.resumedTurns[clientMsg.turnNumber]?.hash;
+            if (saved !== undefined && saved !== null && saved !== clientMsg.hash) {
+              console.error(`resume desync on turn ${clientMsg.turnNumber}`);
+              this.clientMessage({
+                type: "desync",
+                turn: clientMsg.turnNumber,
+                correctHash: saved,
+                clientsWithCorrectHash: 0,
+                totalActiveClients: 1,
+                yourHash: clientMsg.hash,
+              });
+            }
             turn.hash = clientMsg.hash;
           }
         }
@@ -245,6 +298,7 @@ export class LocalServer {
     if (clientMsg.type === "winner") {
       this.winner = clientMsg;
       this.allPlayersStats = clientMsg.allPlayersStats;
+      if (!this.isReplay) markMatchOver();
       if (!this.isReplay) {
         // Archive as soon as the game is decided: endGame() only runs during
         // page teardown, where the auth refresh and upload race document
@@ -278,14 +332,45 @@ export class LocalServer {
     };
     this.turns.push(pastTurn);
     this.intents = [];
+    // 30초(300턴)마다 자동 저장.
+    if (this.turns.length - this.lastSavedTurnCount >= 300) this.saveNow();
     this.clientMessage({
       type: "turn",
       turn: pastTurn,
     });
   }
 
+  /** 현재까지의 턴을 저장 슬롯에 쓴다. 끝난 판·리플레이는 저장하지 않는다. */
+  private saveNow(): void {
+    const info = this.lobbyConfig.gameStartInfo;
+    if (
+      this.isReplay ||
+      this.lobbyConfig.gameRecord !== undefined ||
+      info === undefined ||
+      this.winner !== null ||
+      isSaveBlocked(info.gameID) ||
+      this.turns.length === 0
+    ) {
+      return;
+    }
+    this.lastSavedTurnCount = this.turns.length;
+    void writeSavedMatch(buildSavedMatch(info, this.turns.slice()));
+  }
+
+  private installSaveListeners(): void {
+    if (this.saveListenersOn) return;
+    this.saveListenersOn = true;
+    // 탭을 숨기거나 닫을 때도 저장한다(모바일 포함).
+    const onHide = () => {
+      if (document.visibilityState === "hidden") this.saveNow();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", () => this.saveNow());
+  }
+
   public endGame() {
     console.log("local server ending game");
+    this.saveNow();
     clearInterval(this.turnCheckInterval);
     this.stopHeartbeat?.();
     this.stopHeartbeat = null;

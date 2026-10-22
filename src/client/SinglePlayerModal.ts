@@ -28,6 +28,13 @@ import { gamePortal } from "./GamePortal";
 import { GameStartingModal } from "./GameStartingModal";
 import { showInGameAlert } from "./InGameModal";
 import { JoinLobbyEvent } from "./Main";
+import {
+  clearSavedMatch,
+  readSavedMatch,
+  stageResume,
+  summarize,
+  type SavedMatch,
+} from "./SaveGame";
 import { fallbackPlayerName, ResolvedPlayerName } from "./PlayerName";
 import { lastUserMeResponse } from "./UserMeBroadcast";
 import { UsernameInput } from "./UsernameInput";
@@ -260,6 +267,9 @@ export class SinglePlayerModal extends BaseModal {
   // Identifies the current start attempt. Bumped on every start and on every
   // close, so an attempt that outlives its modal can tell it has been retired.
   private startAttempt: number = 0;
+  // 중간 저장 슬롯(있으면 이어하기 카드를 보인다).
+  @state() private savedMatch: SavedMatch | null = null;
+  @state() private resumeNotice: string | null = null;
   // Which attempt the starting overlay is up for, so a retired attempt's
   // cleanup cannot hide the overlay a newer attempt has shown.
   private overlayAttempt: number = 0;
@@ -974,6 +984,7 @@ export class SinglePlayerModal extends BaseModal {
 
         <!-- Footer Action -->
         <div class="p-6 border-t border-white/10 bg-black/20 shrink-0">
+          ${this.renderResumeCard()}
           ${this.cheatsEnabled()
             ? html`<div
                 class="mb-4 px-4 py-3 rounded-xl bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-xs font-bold uppercase tracking-wider text-center"
@@ -1077,6 +1088,7 @@ export class SinglePlayerModal extends BaseModal {
   }
 
   protected onOpen(): void {
+    void this.loadSavedMatch();
     void this.loadNationCount();
     // Spend the cosmetics round trip while the player is picking a map, not
     // after they commit. startGame() still resolves cosmetics properly; this
@@ -1085,6 +1097,89 @@ export class SinglePlayerModal extends BaseModal {
     // deliberately does not cache a failure, so the click re-pays one bounded
     // attempt. Remembering an unreachable backend is OPE-403.
     void prewarmCosmetics();
+  }
+
+  private async loadSavedMatch(): Promise<void> {
+    this.resumeNotice = null;
+    this.savedMatch = await readSavedMatch();
+  }
+
+  private handleDiscardSave = async () => {
+    await clearSavedMatch();
+    this.savedMatch = null;
+    this.resumeNotice = null;
+  };
+
+  /** 저장된 판을 같은 판 ID·같은 설정으로 다시 열고 저장된 턴을 따라잡는다. */
+  private handleResumeSave = () => {
+    const m = this.savedMatch;
+    if (m === null || this.starting) return;
+    if (!summarize(m).compatible) {
+      this.resumeNotice = translateText("save_resume.incompatible");
+      return;
+    }
+    stageResume(m);
+    const startingModal = document.querySelector("game-starting-modal");
+    if (startingModal instanceof GameStartingModal) startingModal.show();
+    this.dispatchEvent(
+      new CustomEvent("join-lobby", {
+        detail: {
+          gameID: m.gameStartInfo.gameID,
+          gameStartInfo: m.gameStartInfo,
+          source: "singleplayer",
+        } satisfies JoinLobbyEvent,
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    this.close();
+  };
+
+  private renderResumeCard(): TemplateResult | null {
+    const m = this.savedMatch;
+    if (m === null) return null;
+    const sum = summarize(m);
+    const minutes = Math.floor(sum.ticks / 600);
+    const secs = Math.floor((sum.ticks % 600) / 10);
+    const when = new Date(sum.savedAt).toLocaleString();
+    return html`<div
+      class="mb-4 px-4 py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10"
+    >
+      <div class="text-xs font-bold uppercase tracking-wider text-emerald-300">
+        ${translateText("save_resume.title")}
+      </div>
+      <div class="mt-1 text-sm text-white/80">
+        ${translateText(`map.${sum.map.toLowerCase()}`)} ·
+        ${translateText(`difficulty.${sum.difficulty.toLowerCase()}`)} ·
+        ${minutes}:${String(secs).padStart(2, "0")}
+      </div>
+      <div class="text-xs text-white/40">${when}</div>
+      ${this.resumeNotice !== null || !sum.compatible
+        ? html`<div class="mt-2 text-xs text-amber-300">
+            ${translateText("save_resume.incompatible")}
+          </div>`
+        : null}
+      <div class="mt-3 flex gap-2">
+        <button
+          class="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/30 border border-emerald-500/50 text-emerald-100 hover:bg-emerald-500/40 transition-all ${sum.compatible
+            ? ""
+            : "opacity-40 cursor-not-allowed"}"
+          ?disabled=${!sum.compatible}
+          @click=${this.handleResumeSave}
+        >
+          ${translateText("save_resume.resume")}
+        </button>
+        <button
+          class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white/10 border border-white/20 text-white/70 hover:bg-white/15 transition-all"
+          @click=${this.handleDiscardSave}
+        >
+          ${translateText("save_resume.discard")}
+        </button>
+      </div>
+      <div class="mt-2 text-[11px] text-white/35">
+        ${translateText("save_resume.note")}
+      </div>
+    </div>`;
   }
 
   private handleSelectRandomMap() {
