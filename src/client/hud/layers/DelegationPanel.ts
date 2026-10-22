@@ -419,6 +419,30 @@ export class DelegationPanel extends LitElement implements Controller {
     }
   }
 
+  /**
+   * Reserve actually enforced by the engine (its anchor is taken when the
+   * intent is processed, a few ticks after the click, so it can differ from
+   * the client's own click-time estimate). Falls back to the estimate while
+   * no fresh engine decision exists.
+   */
+  private shownDefReserve(): bigint | null {
+    const d = this.defDecision;
+    if (d !== null && this.hasFreshDecision(d)) {
+      return BigInt(Math.round(d.status.ownReserve));
+    }
+    return this.reserveFloor();
+  }
+
+  private shownEconReserve(): bigint | null {
+    const d = this.econDecision;
+    if (d !== null && this.hasFreshDecision(d)) {
+      return BigInt(
+        Math.round(d.status.ownReserve + d.status.otherReserve),
+      );
+    }
+    return this.econCombinedFloor();
+  }
+
   private hasFreshDecision(d: DecisionState | null): boolean {
     if (d === null) return false;
     const now = this.game?.ticks() ?? 0;
@@ -760,10 +784,10 @@ export class DelegationPanel extends LitElement implements Controller {
                   pct: this.reservePercent,
                 })}
               </p>
-              ${this.enabled && this.reserveFloor() !== null
+              ${this.enabled && this.shownDefReserve() !== null
                 ? html`<p class="text-xs text-amber-300/90 mt-1 tabular-nums">
                     ${translateText("delegation_panel.reserve_floor", {
-                      amount: this.reserveFloor()!.toLocaleString(),
+                      amount: this.shownDefReserve()!.toLocaleString(),
                     })}
                   </p>
                   <p class="text-xs text-white/40 mt-1">
@@ -845,10 +869,10 @@ export class DelegationPanel extends LitElement implements Controller {
                   pct: this.econReservePercent,
                 })}
               </p>
-              ${this.econEnabled && this.econCombinedFloor() !== null
+              ${this.econEnabled && this.shownEconReserve() !== null
                 ? html`<p class="text-xs text-amber-300/90 mt-1 tabular-nums">
                     ${translateText("delegation_panel.econ_reserve_floor", {
-                      amount: this.econCombinedFloor()!.toLocaleString(),
+                      amount: this.shownEconReserve()!.toLocaleString(),
                     })}
                   </p>`
                 : nothing}
