@@ -81,6 +81,15 @@ export class SetDefenseDelegationEvent implements GameEvent {
   ) {}
 }
 
+export class SetEconomyDelegationEvent implements GameEvent {
+  constructor(
+    public readonly enabled: boolean,
+    public readonly reservePercent: number,
+    public readonly buildCities?: boolean,
+    public readonly buildFactories?: boolean,
+  ) {}
+}
+
 export class SendAllianceRequestIntentEvent implements GameEvent {
   constructor(
     public readonly requestor: PlayerView,
@@ -350,6 +359,9 @@ export class Transport {
     this.subscribe(PauseGameIntentEvent, (e) => this.onPauseGameIntent(e));
     this.subscribe(SetDefenseDelegationEvent, (e) =>
       this.onSetDefenseDelegation(e),
+    );
+    this.subscribe(SetEconomyDelegationEvent, (e) =>
+      this.onSetEconomyDelegation(e),
     );
     this.subscribe(SendWinnerEvent, (e) => this.onSendWinnerEvent(e));
     this.subscribe(SendLiveStatsEvent, (e) => this.onSendLiveStatsEvent(e));
@@ -930,6 +942,16 @@ export class Transport {
       buildSams: event.buildSams,
       priority: event.priority,
       zoneTile: event.zoneTile,
+    });
+  }
+
+  private onSetEconomyDelegation(event: SetEconomyDelegationEvent) {
+    this.sendIntent({
+      type: "set_economy_delegation",
+      enabled: event.enabled,
+      reservePercent: event.reservePercent,
+      buildCities: event.buildCities,
+      buildFactories: event.buildFactories,
     });
   }
 

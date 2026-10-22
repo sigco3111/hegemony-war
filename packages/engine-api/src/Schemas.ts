@@ -48,6 +48,7 @@ export type Intent =
   | TogglePauseIntent
   | UpdateGameConfigIntent
   | SetDefenseDelegationIntent
+  | SetEconomyDelegationIntent
   | ToggleGameStartTimer;
 
 export type AttackIntent = z.infer<typeof AttackIntentSchema>;
@@ -58,6 +59,9 @@ export type EmbargoAllIntent = z.infer<typeof EmbargoAllIntentSchema>;
 export type CancelBoatIntent = z.infer<typeof CancelBoatIntentSchema>;
 export type SetDefenseDelegationIntent = z.infer<
   typeof SetDefenseDelegationIntentSchema
+>;
+export type SetEconomyDelegationIntent = z.infer<
+  typeof SetEconomyDelegationIntentSchema
 >;
 export type AllianceRequestIntent = z.infer<typeof AllianceRequestIntentSchema>;
 export type AllianceRejectIntent = z.infer<typeof AllianceRejectIntentSchema>;
@@ -587,6 +591,20 @@ export const SetDefenseDelegationIntentSchema = z.object({
   zoneTile: zb.uint().nullable().optional(),
 });
 
+// 개선 11 economy delegation: toggle the AI-managed city/factory
+// construction and set the share of the treasury it must always leave
+// untouched. Warships and all other facilities stay manual. All detail
+// fields are optional so a plain toggle intent still parses.
+export const SetEconomyDelegationIntentSchema = z.object({
+  type: z.literal("set_economy_delegation"),
+  enabled: z.boolean(),
+  reservePercent: zb.uint({ max: 90 }),
+  /** May the delegate build cities? */
+  buildCities: z.boolean().optional(),
+  /** May the delegate build factories? */
+  buildFactories: z.boolean().optional(),
+});
+
 export const IntentSchema = z.discriminatedUnion("type", [
   AttackIntentSchema,
   CancelAttackIntentSchema,
@@ -613,6 +631,7 @@ export const IntentSchema = z.discriminatedUnion("type", [
   TogglePauseIntentSchema,
   UpdateGameConfigIntentSchema,
   SetDefenseDelegationIntentSchema,
+  SetEconomyDelegationIntentSchema,
   ToggleGameStartTimerIntentSchema,
 ]);
 

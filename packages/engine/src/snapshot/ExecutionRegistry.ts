@@ -9,6 +9,7 @@ import { CityExecutionSnapshot } from "../execution/CityExecution";
 import { ConstructionExecutionSnapshot } from "../execution/ConstructionExecution";
 import { DefensePostExecutionSnapshot } from "../execution/DefensePostExecution";
 import { DefenseDelegationExecutionSnapshot } from "../execution/DefenseDelegationExecution";
+import { EconomyDelegationExecutionSnapshot } from "../execution/EconomyDelegationExecution";
 import { DeleteUnitExecutionSnapshot } from "../execution/DeleteUnitExecution";
 import { DonateGoldExecutionSnapshot } from "../execution/DonateGoldExecution";
 import { DonateTroopsExecutionSnapshot } from "../execution/DonateTroopExecution";
@@ -64,6 +65,7 @@ export const EXECUTION_SNAPSHOT_TYPES = [
   ConstructionExecutionSnapshot,
   DefensePostExecutionSnapshot,
   DefenseDelegationExecutionSnapshot,
+  EconomyDelegationExecutionSnapshot,
   DeleteUnitExecutionSnapshot,
   DonateGoldExecutionSnapshot,
   DonateTroopsExecutionSnapshot,

@@ -18,7 +18,10 @@ import {
   DelegationZonePickModeEvent,
 } from "../../DelegationZoneEvents";
 import { formatRecordDuration } from "../../LocalRecords";
-import { SetDefenseDelegationEvent } from "../../Transport";
+import {
+  SetDefenseDelegationEvent,
+  SetEconomyDelegationEvent,
+} from "../../Transport";
 import { translateText } from "../../Utils";
 import { GameView } from "../../view";
 
@@ -75,6 +78,19 @@ export class DelegationPanel extends LitElement implements Controller {
   private postCost: bigint | null = null;
   private costRefreshTick = -1000;
   private costFetchInFlight = false;
+
+  /** 개선 11: economy delegation (cities + factories) state. */
+  @state() private econEnabled = false;
+  @state() private econReservePercent = 50;
+  @state() private econCities = true;
+  @state() private econFactories = true;
+  /**
+   * Treasury when the economy delegation was switched on; mirrors the
+   * engine anchor. Its floor stacks ON TOP of the defense floor, so the
+   * two delegations never spend each other's budget.
+   */
+  @state() private econAnchorGold: bigint | null = null;
+  @state() private econStatus: "hold" | "watch" | null = null;
 
   createRenderRoot() {
     return this;
@@ -180,6 +196,7 @@ export class DelegationPanel extends LitElement implements Controller {
       this.actions = [...fresh, ...this.actions].slice(0, MAX_HISTORY);
     }
     void this.refreshStatus();
+    this.refreshEconStatus();
   }
 
   /** Engine mirror: UNDER_ATTACK_THREAT_RATIO in DefensePostPlacement. */
@@ -242,6 +259,35 @@ export class DelegationPanel extends LitElement implements Controller {
     this.status = "watch";
   }
 
+  /**
+   * 개선 11: keeps the economy section's status truthful — "hold" when the
+   * cheapest enabled build would break the combined (own + defense)
+   * reserve floor, "watch" otherwise.
+   */
+  private refreshEconStatus(): void {
+    const me = this.game.myPlayer();
+    if (
+      !this.econEnabled ||
+      this.econAnchorGold === null ||
+      me === null ||
+      me === undefined ||
+      !me.isAlive()
+    ) {
+      if (this.econStatus !== null) this.econStatus = null;
+      return;
+    }
+    const floor = this.econCombinedFloor();
+    // Cheapest possible build proxy: the defense-post cost fetch already
+    // runs for the defense section; a city/factory costs more, so if even
+    // the combined floor exceeds the balance the delegate is holding.
+    const gold = me.gold();
+    if (floor !== null && gold < floor) {
+      this.econStatus = "hold";
+      return;
+    }
+    this.econStatus = "watch";
+  }
+
   private setEnabled(on: boolean): void {
     if (on && !this.enabled) {
       // Off→on: re-anchor the reserve basis to the current treasury.
@@ -265,10 +311,71 @@ export class DelegationPanel extends LitElement implements Controller {
     if (this.enabled) this.emitSettings();
   }
 
+  /** 개선 11: sends the current economy delegation settings. */
+  private emitEconSettings(): void {
+    this.eventBus.emit(
+      new SetEconomyDelegationEvent(
+        this.econEnabled,
+        this.econReservePercent,
+        this.econCities,
+        this.econFactories,
+      ),
+    );
+  }
+
+  private setEconEnabled(on: boolean): void {
+    if (on && !this.econEnabled) {
+      // Off→on: re-anchor the reserve basis to the current treasury.
+      this.econAnchorGold = this.game.myPlayer()?.gold() ?? null;
+    }
+    if (!on) {
+      this.econAnchorGold = null;
+    }
+    this.econEnabled = on;
+    this.emitEconSettings();
+  }
+
+  private econReserveFloor(): bigint | null {
+    if (this.econAnchorGold === null) return null;
+    return (
+      (this.econAnchorGold * BigInt(this.econReservePercent)) / 100n
+    );
+  }
+
+  /** Combined floor the economy delegate keeps (own + defense budget). */
+  private econCombinedFloor(): bigint | null {
+    const own = this.econReserveFloor();
+    if (own === null) return null;
+    const defense = this.reserveFloor() ?? 0n;
+    return own + defense;
+  }
+
+  private setEconReserve(pct: number): void {
+    this.econReservePercent = pct;
+    if (this.econEnabled) this.emitEconSettings();
+  }
+
+  private toggleEconCities(): void {
+    this.econCities = !this.econCities;
+    if (this.econEnabled) this.emitEconSettings();
+  }
+
+  private toggleEconFactories(): void {
+    this.econFactories = !this.econFactories;
+    if (this.econEnabled) this.emitEconSettings();
+  }
+
   private actionLabel(unit: UnitType): string {
-    return unit === UnitType.SAMLauncher
-      ? translateText("delegation_panel.built_sam")
-      : translateText("delegation_panel.built_post");
+    switch (unit) {
+      case UnitType.SAMLauncher:
+        return translateText("delegation_panel.built_sam");
+      case UnitType.City:
+        return translateText("delegation_panel.built_city");
+      case UnitType.Factory:
+        return translateText("delegation_panel.built_factory");
+      default:
+        return translateText("delegation_panel.built_post");
+    }
   }
 
   private renderHistory(): TemplateResult {
@@ -503,6 +610,83 @@ export class DelegationPanel extends LitElement implements Controller {
                   </p>
                   <p class="text-xs text-white/40 mt-1">
                     ${translateText("delegation_panel.reserve_reset_hint")}
+                  </p>`
+                : nothing}
+            </section>
+            <section>
+              <h3 class="text-xs font-bold text-white/60 uppercase mb-2">
+                ${translateText("delegation_panel.econ_heading")}
+              </h3>
+              <p class="text-xs text-white/60 mb-3 leading-relaxed">
+                ${translateText("delegation_panel.econ_desc")}
+              </p>
+              <button
+                class="w-full rounded-lg px-3 py-2 text-sm font-bold transition-colors cursor-pointer ${this
+                  .econEnabled
+                  ? "bg-emerald-600 hover:bg-emerald-500 text-white"
+                  : "bg-slate-700 hover:bg-slate-600 text-white/80"}"
+                @click=${() => this.setEconEnabled(!this.econEnabled)}
+              >
+                ${this.econEnabled
+                  ? translateText("delegation_panel.on")
+                  : translateText("delegation_panel.off")}
+              </button>
+              ${this.econEnabled && this.econStatus !== null
+                ? html`<p
+                    class="mt-2 text-xs ${this.econStatus === "hold"
+                      ? "text-amber-300/90"
+                      : "text-white/55"}"
+                  >
+                    ${translateText(
+                      `delegation_panel.econ_status_${this.econStatus}`,
+                    )}
+                  </p>`
+                : nothing}
+              <div class="flex gap-2 mt-3">
+                <button
+                  class="flex-1 rounded-lg px-2 py-1.5 text-xs font-bold transition-colors cursor-pointer ${this
+                    .econCities
+                    ? "bg-emerald-600 text-white"
+                    : "bg-slate-700 text-white/60 hover:bg-slate-600"}"
+                  @click=${() => this.toggleEconCities()}
+                >
+                  ${translateText("delegation_panel.struct_city")}
+                </button>
+                <button
+                  class="flex-1 rounded-lg px-2 py-1.5 text-xs font-bold transition-colors cursor-pointer ${this
+                    .econFactories
+                    ? "bg-emerald-600 text-white"
+                    : "bg-slate-700 text-white/60 hover:bg-slate-600"}"
+                  @click=${() => this.toggleEconFactories()}
+                >
+                  ${translateText("delegation_panel.struct_factory")}
+                </button>
+              </div>
+              <div class="flex gap-2 mt-3 mb-2">
+                ${RESERVE_OPTIONS.map(
+                  (pct) => html`
+                    <button
+                      class="flex-1 rounded-lg px-2 py-1.5 text-xs font-bold transition-colors cursor-pointer ${this
+                        .econReservePercent === pct
+                        ? "bg-sky-600 text-white"
+                        : "bg-slate-700 text-white/70 hover:bg-slate-600"}"
+                      @click=${() => this.setEconReserve(pct)}
+                    >
+                      ${pct}%
+                    </button>
+                  `,
+                )}
+              </div>
+              <p class="text-xs text-white/50">
+                ${translateText("delegation_panel.econ_reserve_hint", {
+                  pct: this.econReservePercent,
+                })}
+              </p>
+              ${this.econEnabled && this.econCombinedFloor() !== null
+                ? html`<p class="text-xs text-amber-300/90 mt-1 tabular-nums">
+                    ${translateText("delegation_panel.econ_reserve_floor", {
+                      amount: this.econCombinedFloor()!.toLocaleString(),
+                    })}
                   </p>`
                 : nothing}
             </section>

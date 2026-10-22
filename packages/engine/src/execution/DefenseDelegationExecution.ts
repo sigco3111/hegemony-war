@@ -112,6 +112,15 @@ export class DefenseDelegationExecution implements Execution {
     this.active = false;
   }
 
+  /**
+   * 개선 11: the gold floor this delegation always keeps (reservePercent of
+   * the anchor). Exposed so the economy delegation can stay out of the
+   * defense budget (budget separation).
+   */
+  reserveFloor(): bigint {
+    return (this.anchorGold * BigInt(this.reservePercent)) / 100n;
+  }
+
   tick(ticks: number): void {
     if (!this.player.isAlive()) {
       this.active = false;

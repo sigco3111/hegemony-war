@@ -15,6 +15,7 @@ import { AttackExecution } from "./AttackExecution";
 import { BoatRetreatExecution } from "./BoatRetreatExecution";
 import { ConstructionExecution } from "./ConstructionExecution";
 import { DefenseDelegationExecution } from "./DefenseDelegationExecution";
+import { EconomyDelegationExecution } from "./EconomyDelegationExecution";
 import { DeleteUnitExecution } from "./DeleteUnitExecution";
 import { DonateGoldExecution } from "./DonateGoldExecution";
 import { DonateTroopsExecution } from "./DonateTroopExecution";
@@ -155,6 +156,16 @@ export class Executor {
             buildSams: intent.buildSams,
             priority: intent.priority,
             zoneTile: intent.zoneTile ?? null,
+          },
+        );
+      case "set_economy_delegation":
+        return new EconomyDelegationExecution(
+          player,
+          intent.enabled,
+          intent.reservePercent,
+          {
+            buildCities: intent.buildCities,
+            buildFactories: intent.buildFactories,
           },
         );
       default:
