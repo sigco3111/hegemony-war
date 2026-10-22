@@ -49,10 +49,22 @@ import {
   clearedChallenges,
   formatRecordDuration,
   loadRecords,
+  LocalRecordsData,
   localMapWins,
+  MAX_RECORD_GAMES,
   RECORDS_CHANGED_EVENT,
   recordsSummary,
+  saveImportedRecords,
 } from "./LocalRecords";
+import {
+  downloadBackup,
+  ImportPlan,
+  MAX_BACKUP_BYTES,
+  medalCount,
+  mergeRecords,
+  parseBackup,
+  planImport,
+} from "./RecordsBackup";
 import { terrainMapFileLoader } from "./TerrainMapFileLoader";
 
 /**
@@ -69,6 +81,18 @@ import { terrainMapFileLoader } from "./TerrainMapFileLoader";
  * that time while the player is still choosing, which is what keeps the case
  * rare rather than routine.
  */
+// Hegemony: state of a pending records import, between file pick and the
+// user's confirm/cancel.
+interface ImportPreviewState {
+  fileName: string;
+  exportedAt: number | null;
+  plan: ImportPlan;
+  fileGames: number;
+  fileMedals: number;
+  fileChallenges: number;
+  data: LocalRecordsData;
+}
+
 export const START_PREPARE_DEADLINE_MS = 15_000;
 
 /**
@@ -197,6 +221,13 @@ export class SinglePlayerModal extends BaseModal {
   @state() private showAchievements: boolean = false;
   // Hegemony: the 기록실 (local records) panel swaps the body when on.
   @state() private showRecords: boolean = false;
+  // Hegemony: 기록실 백업·복원 — a picked file is validated and previewed
+  // as a merge plan first; the store changes only on explicit confirm.
+  @state() private importPreview: ImportPreviewState | null = null;
+  @state() private backupNotice: {
+    kind: "success" | "error";
+    text: string;
+  } | null = null;
   @state() private mapWins: Map<GameMapType, Set<Difficulty>> = new Map();
   // Maps that support achievements (have nations). null until loaded — the
   // medal overview shows a placeholder total meanwhile.
@@ -489,6 +520,217 @@ export class SinglePlayerModal extends BaseModal {
     `;
   }
 
+  // Hegemony: 백업 내보내기 — the whole store downloads as one JSON file.
+  private handleExportRecords = () => {
+    const data = loadRecords();
+    const fileName = downloadBackup(data);
+    this.importPreview = null;
+    this.backupNotice = {
+      kind: "success",
+      text: translateText("records_backup.exported", {
+        name: fileName,
+        games: data.games.length,
+      }),
+    };
+  };
+
+  private handleImportClick = () => {
+    this.renderRoot
+      .querySelector<HTMLInputElement>("#records-import-file")
+      ?.click();
+  };
+
+  // Hegemony: 복원 가져오기 step 1 — read + validate only. The store is
+  // untouched here; a valid file becomes a merge-plan preview instead.
+  private handleImportFile = async (event: Event) => {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    // Reset so picking the same file again still fires change.
+    input.value = "";
+    if (!file) return;
+    if (file.size > MAX_BACKUP_BYTES) {
+      this.importPreview = null;
+      this.backupNotice = {
+        kind: "error",
+        text: translateText("records_backup.error_too_large"),
+      };
+      return;
+    }
+    let text: string;
+    try {
+      text = await file.text();
+    } catch {
+      this.importPreview = null;
+      this.backupNotice = {
+        kind: "error",
+        text: translateText("records_backup.error_not_json"),
+      };
+      return;
+    }
+    const parsed = parseBackup(text);
+    if (!parsed.ok) {
+      this.importPreview = null;
+      this.backupNotice = {
+        kind: "error",
+        text: translateText(`records_backup.error_${parsed.error}`, {
+          detail: parsed.detail ?? "",
+        }),
+      };
+      return;
+    }
+    this.backupNotice = null;
+    this.importPreview = {
+      fileName: file.name,
+      exportedAt: parsed.exportedAt,
+      plan: planImport(loadRecords(), parsed.data),
+      fileGames: parsed.data.games.length,
+      fileMedals: medalCount(parsed.data),
+      fileChallenges: (parsed.data.challenges ?? []).length,
+      data: parsed.data,
+    };
+  };
+
+  // Hegemony: 복원 가져오기 step 2 — the only place an import writes.
+  // mergeRecords unions onto the live store, so existing 기록 can never be
+  // deleted or overwritten by a backup file.
+  private handleImportConfirm = () => {
+    const preview = this.importPreview;
+    if (preview === null) return;
+    const merged = mergeRecords(loadRecords(), preview.data);
+    saveImportedRecords(merged);
+    this.importPreview = null;
+    const added =
+      preview.plan.newGames + preview.plan.newMedals + preview.plan.newChallenges;
+    this.backupNotice = {
+      kind: "success",
+      text:
+        added === 0
+          ? translateText("records_backup.imported_none")
+          : translateText("records_backup.imported", {
+              games: preview.plan.newGames,
+              medals: preview.plan.newMedals,
+              challenges: preview.plan.newChallenges,
+            }),
+    };
+  };
+
+  private handleImportCancel = () => {
+    this.importPreview = null;
+  };
+
+  // Hegemony: the backup/restore card at the top of the 기록실 panel.
+  private renderBackupSection(): TemplateResult {
+    const notice = this.backupNotice;
+    return html`
+      <div class="mb-4 px-4 py-3 rounded-xl border border-white/10 bg-white/5">
+        <div
+          class="mb-1 text-xs font-bold uppercase tracking-wider text-white/50"
+        >
+          ${translateText("records_backup.title")}
+        </div>
+        <div class="mb-3 text-xs text-white/40">
+          ${translateText("records_backup.desc")}
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            class="px-3 py-1.5 rounded-lg text-xs font-bold bg-sky-500/20 border border-sky-500/40 text-sky-300 hover:bg-sky-500/30 transition-all"
+            @click=${this.handleExportRecords}
+          >
+            ${translateText("records_backup.export_btn")}
+          </button>
+          <button
+            class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white/10 border border-white/20 text-white/80 hover:bg-white/15 transition-all"
+            @click=${this.handleImportClick}
+          >
+            ${translateText("records_backup.import_btn")}
+          </button>
+          <input
+            id="records-import-file"
+            type="file"
+            accept=".json,application/json"
+            class="hidden"
+            @change=${this.handleImportFile}
+          />
+        </div>
+        ${notice !== null
+          ? html`<div
+              class="mt-3 rounded-lg px-3 py-2 text-xs ${notice.kind ===
+              "success"
+                ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                : "border border-red-500/30 bg-red-500/10 text-red-300"}"
+            >
+              ${notice.text}
+            </div>`
+          : ""}
+        ${this.importPreview !== null
+          ? this.renderImportPreview(this.importPreview)
+          : ""}
+      </div>
+    `;
+  }
+
+  // Hegemony: the pre-import merge plan — file contents, what would be
+  // added, what is duplicated, and the explicit "nothing is deleted" note.
+  private renderImportPreview(preview: ImportPreviewState): TemplateResult {
+    const plan = preview.plan;
+    return html`
+      <div class="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/10 p-3">
+        <div class="mb-1 text-xs font-bold text-sky-300">
+          ${translateText("records_backup.preview_title")}
+        </div>
+        <div class="text-xs text-white/60">
+          ${translateText("records_backup.preview_file", {
+            name: preview.fileName,
+            date:
+              preview.exportedAt !== null
+                ? new Date(preview.exportedAt).toLocaleString("ko-KR")
+                : "-",
+          })}
+        </div>
+        <div class="text-xs text-white/60">
+          ${translateText("records_backup.preview_contains", {
+            games: preview.fileGames,
+            medals: preview.fileMedals,
+            challenges: preview.fileChallenges,
+          })}
+        </div>
+        <div class="mt-1 text-xs font-semibold text-white/80">
+          ${translateText("records_backup.preview_plan", {
+            games: plan.newGames,
+            medals: plan.newMedals,
+            challenges: plan.newChallenges,
+            dups: plan.duplicateGames,
+          })}
+        </div>
+        ${plan.droppedByCap > 0
+          ? html`<div class="mt-1 text-xs text-amber-300">
+              ${translateText("records_backup.preview_cap", {
+                max: MAX_RECORD_GAMES,
+                dropped: plan.droppedByCap,
+              })}
+            </div>`
+          : ""}
+        <div class="mt-1 text-[11px] text-white/40">
+          ${translateText("records_backup.preview_safe")}
+        </div>
+        <div class="mt-2 flex flex-wrap gap-2">
+          <button
+            class="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 transition-all"
+            @click=${this.handleImportConfirm}
+          >
+            ${translateText("records_backup.confirm_btn")}
+          </button>
+          <button
+            class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white/10 border border-white/20 text-white/70 hover:bg-white/15 transition-all"
+            @click=${this.handleImportCancel}
+          >
+            ${translateText("records_backup.cancel_btn")}
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
   // Hegemony: the 기록실 panel — summary line plus the newest games first,
   // all from the device-local store (LocalRecords).
   private renderRecordsPanel(): TemplateResult {
@@ -511,7 +753,7 @@ export class SinglePlayerModal extends BaseModal {
             challengesTotal: summary.challengesTotal,
           })}
         </div>
-        ${this.renderChallengesSection()}
+        ${this.renderBackupSection()} ${this.renderChallengesSection()}
         ${data.games.length === 0
           ? html`<div class="py-12 text-center text-sm text-white/40">
               ${translateText("records_panel.empty")}

@@ -43,7 +43,7 @@ export interface SoloGameRecord {
   disabledUnits?: string[];
 }
 
-interface LocalRecordsData {
+export interface LocalRecordsData {
   version: 1;
   // Newest first, capped — localStorage is small and the list is a history,
   // not an archive.
@@ -63,6 +63,10 @@ interface LocalRecordsData {
 
 const STORAGE_KEY = "hegemony.records.v1";
 const MAX_GAMES = 200;
+
+// Exported for the backup/restore merge (RecordsBackup), which must apply
+// the same history cap when combining two stores.
+export const MAX_RECORD_GAMES = MAX_GAMES;
 
 export const RECORDS_CHANGED_EVENT = "hegemony-records-changed";
 
@@ -201,6 +205,17 @@ export function recordSoloGameEnd(record: SoloGameRecord): string[] {
   saveRecords(data);
   document.dispatchEvent(new CustomEvent(RECORDS_CHANGED_EVENT));
   return newlyCleared;
+}
+
+/**
+ * Persists a merged store coming from a backup import (RecordsBackup) and
+ * notifies open panels. Import merges — this never sees a store that lost
+ * existing records, and it deliberately bypasses no validation: the merge
+ * output is already sanitized by parseBackup.
+ */
+export function saveImportedRecords(data: LocalRecordsData): void {
+  saveRecords(data);
+  document.dispatchEvent(new CustomEvent(RECORDS_CHANGED_EVENT));
 }
 
 /** The medal map in the exact shape SinglePlayerModal already renders. */

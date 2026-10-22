@@ -2803,6 +2803,27 @@
     "youtube_tutorial": "Need some help?",
     "challenge_cleared": "Challenge cleared!"
   },
+  "records_backup": {
+    "title": "Backup · Restore",
+    "desc": "Keep your records, medals and challenges in a file, or bring them over from another device. Importing merges on top of existing records and never deletes them.",
+    "export_btn": "Export",
+    "import_btn": "Import",
+    "exported": "Records exported to a file ({games} games · {name})",
+    "imported": "Restore complete: added {games} games, {medals} medals, {challenges} challenges",
+    "imported_none": "Nothing was added (all duplicates)",
+    "preview_title": "Import preview",
+    "preview_file": "{name} · exported {date}",
+    "preview_contains": "In file: {games} games · {medals} medals · {challenges} challenges",
+    "preview_plan": "To be added: {games} games · {medals} medals · {challenges} challenges · {dups} duplicates skipped",
+    "preview_cap": "Only the newest {max} games are kept, so the oldest {dropped} will be left out",
+    "preview_safe": "Existing records will not be deleted",
+    "confirm_btn": "Apply import",
+    "cancel_btn": "Cancel",
+    "error_too_large": "The file is too large",
+    "error_not_json": "Not a JSON file, or the contents are corrupted",
+    "error_not_backup": "Not a Hegemony records backup file",
+    "error_invalid_records": "The backup file contains malformed records ({detail})"
+  },
   "records_panel": {
     "summary": "{games} games · {wins} wins · {rate}% win rate · {maps} maps conquered · challenges {challenges}/{challengesTotal}",
     "empty": "No finished games yet",

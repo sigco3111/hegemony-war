@@ -2459,6 +2459,27 @@
     "youtube_tutorial": "도움이 필요하신가요?",
     "challenge_cleared": "챌린지 달성!"
   },
+  "records_backup": {
+    "title": "백업 · 복원",
+    "desc": "전적·메달·챌린지를 파일로 보관하거나 다른 기기에서 가져옵니다. 가져오기는 기존 기록 위에 합쳐지며, 기존 기록은 절대 지워지지 않습니다.",
+    "export_btn": "내보내기",
+    "import_btn": "가져오기",
+    "exported": "기록을 파일로 내보냈습니다 ({games}판 · {name})",
+    "imported": "복원 완료: 게임 {games}판 · 메달 {medals}개 · 챌린지 {challenges}개를 추가했습니다",
+    "imported_none": "추가된 기록이 없습니다 (모두 중복)",
+    "preview_title": "가져오기 미리보기",
+    "preview_file": "{name} · 내보낸 시각 {date}",
+    "preview_contains": "파일 내용: 게임 {games}판 · 메달 {medals}개 · 챌린지 {challenges}개",
+    "preview_plan": "추가 예정: 게임 {games}판 · 메달 {medals}개 · 챌린지 {challenges}개 · 중복 {dups}판 건너뜀",
+    "preview_cap": "최신 {max}판까지만 보관되어 가장 오래된 {dropped}판은 제외됩니다",
+    "preview_safe": "기존 기록은 삭제되지 않습니다",
+    "confirm_btn": "가져오기 적용",
+    "cancel_btn": "취소",
+    "error_too_large": "파일이 너무 큽니다",
+    "error_not_json": "JSON 파일이 아니거나 내용이 손상되었습니다",
+    "error_not_backup": "패권의 시간 기록 백업 파일이 아닙니다",
+    "error_invalid_records": "백업 파일의 기록 형식이 올바르지 않습니다 ({detail})"
+  },
   "records_panel": {
     "summary": "총 {games}판 · 승리 {wins}회 · 승률 {rate}% · 정복한 맵 {maps}개 · 챌린지 {challenges}/{challengesTotal}",
     "empty": "아직 완료한 게임이 없습니다",
