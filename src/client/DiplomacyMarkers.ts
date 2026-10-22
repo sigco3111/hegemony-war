@@ -115,11 +115,13 @@ export function findRunawayLeaderID(
 }
 
 /**
- * One marker per notable nation. Precedence: attacker > hegemon > ally — a
- * nation shelling me needs the urgent red ring even when it is also the
- * hegemon or (mid-betrayal) still technically allied.
+ * One marker per notable attacker/nation. Precedence: attacker > hegemon >
+ * ally — a force shelling me needs the urgent red ring even when it is also
+ * the hegemon or (mid-betrayal) still technically allied.
  *
- * Nations without a name location (tiny or just eliminated) are skipped.
+ * Any live invasion counts as an attacker, bot armies included, matching the
+ * diplomacy board's threat section; bots never get hegemon/ally markers.
+ * Attackers without a name location (tiny or just eliminated) are skipped.
  * The local player never gets a marker.
  */
 export function computeDiplomacyMarkers(
@@ -131,7 +133,7 @@ export function computeDiplomacyMarkers(
   const hegemonID = findRunawayLeaderID(nations, mode, difficulty);
   const markers: DiplomacyMarker[] = [];
   for (const n of nations) {
-    if (n.isMe || !n.isAlive || n.isBot) continue;
+    if (n.isMe || !n.isAlive) continue;
     if (n.nameLocation === null) continue;
     const troops = incomingTroops.get(n.smallID) ?? 0;
     if (troops > 0) {
@@ -142,7 +144,11 @@ export function computeDiplomacyMarkers(
         y: n.nameLocation.y,
         troops,
       });
-    } else if (n.smallID === hegemonID) {
+      continue;
+    }
+    // Bots only qualify while actively invading (handled above).
+    if (n.isBot) continue;
+    if (n.smallID === hegemonID) {
       markers.push({
         kind: "hegemon",
         smallID: n.smallID,

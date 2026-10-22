@@ -104,6 +104,26 @@ describe("computeDiplomacyMarkers", () => {
     expect(markers.map((m) => m.smallID)).toEqual([3, 5, 4, 2]);
   });
 
+  it("marks a bot that is invading me as an attacker, matching the board's threat list", () => {
+    const nations = [
+      nation({ smallID: 1, isMe: true }),
+      nation({ smallID: 7, isBot: true, tilesOwned: 999 }),
+      nation({ smallID: 8, isBot: true, tilesOwned: 500 }), // idle bot: no marker
+    ];
+    const markers = computeDiplomacyMarkers(
+      nations,
+      new Map([[7, 16106]]),
+      GameMode.FFA,
+      Difficulty.Hard,
+    );
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toMatchObject({
+      kind: "attacker",
+      smallID: 7,
+      troops: 16106,
+    });
+  });
+
   it("skips dead nations, bots, me, and nations without a name location", () => {
     const nations = [
       nation({ smallID: 1, isMe: true, alliedWithMe: false }),

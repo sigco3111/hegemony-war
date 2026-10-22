@@ -165,8 +165,9 @@ export class DiplomacyMapOverlay extends LitElement implements Controller {
     this.eventBus.emit(new DiplomacyOverlayStatusEvent(this.visible, attackers));
   }
 
-  // Cache incoming-attack front positions via one worker round-trip. Only
-  // attacks from actual nations (mirrors AttackingTroopsController's filter).
+  // Cache incoming-attack front positions via one worker round-trip. Any
+  // player attacking me counts - nations and bot armies alike, matching the
+  // diplomacy board's threat section.
   private pollFrontZones(me: PlayerView) {
     const now = performance.now();
     if (now - this.lastFrontPoll < FRONT_POLL_MS) return;
@@ -177,14 +178,14 @@ export class DiplomacyMapOverlay extends LitElement implements Controller {
     this.attackTroopsById.clear();
     for (const atk of me.incomingAttacks()) {
       if (atk.retreating) continue;
-      let isNation = false;
+      let isThreat = false;
       try {
         const attacker = this.game.playerBySmallID(atk.attackerID);
-        isNation = attacker.isPlayer() && attacker.type() !== PlayerType.Bot;
+        isThreat = attacker.isPlayer();
       } catch {
-        isNation = false;
+        isThreat = false;
       }
-      if (!isNation) continue;
+      if (!isThreat) continue;
       activeIDs.add(atk.id);
       this.attackTroopsById.set(atk.id, atk.troops);
     }
