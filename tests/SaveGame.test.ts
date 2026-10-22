@@ -65,3 +65,13 @@ describe("SaveGame resume", () => {
     expect(summarize({ ...m, build: "old" }).compatible).toBe(false);
   });
 });
+
+import { lastDelegationIntents as lastDeleg } from "../src/client/SaveGame";
+describe("pending intents survive a save", () => {
+  it("lets a paused stop override earlier on-state", () => {
+    const on = { type: "set_defense_delegation", enabled: true } as any;
+    const off = { type: "set_defense_delegation", enabled: false } as any;
+    const r = lastDeleg([{ turnNumber: 0, intents: [on] } as any], [off]);
+    expect(r.defense?.enabled).toBe(false);
+  });
+});

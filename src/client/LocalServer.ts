@@ -161,6 +161,8 @@ export class LocalServer {
         this.lastSavedTurnCount = saved.turns.length;
         // 따라잡은 뒤 일시정지 상태로 열어 상황을 보게 한다.
         // (클라이언트에는 아직 아무것도 보내지 않았으므로 rejoin이 전부 전달한다.)
+        // 일시정지 중 접수돼 저장된 위임 인텐트는 재개 후 첫 턴에 적용한다.
+        this.intents = [...(saved.pending ?? [])] as StampedIntent[];
         this.turns.push({
           turnNumber: this.turns.length,
           intents: [
@@ -249,6 +251,8 @@ export class LocalServer {
           stampedIntent.type === "set_economy_delegation"
         ) {
           this.intents.push(stampedIntent);
+          // 곧바로 새로고침해도 긴급 중지가 사라지지 않도록 바로 저장한다.
+          this.saveNow();
         }
         return;
       }
@@ -362,8 +366,14 @@ export class LocalServer {
     ) {
       return;
     }
+    const prev = this.lastSavedTurnCount;
     this.lastSavedTurnCount = this.turns.length;
-    void writeSavedMatch(buildSavedMatch(info, this.turns.slice()));
+    // 쓰기가 실패하면(용량·권한 등) 표식을 되돌려 다음 시점에 다시 시도한다.
+    void writeSavedMatch(
+      buildSavedMatch(info, this.turns.slice(), this.intents.slice()),
+    ).then((ok) => {
+      if (!ok) this.lastSavedTurnCount = Math.min(this.lastSavedTurnCount, prev);
+    });
   }
 
   private installSaveListeners(): void {

@@ -13,6 +13,7 @@ import { gamePortal } from "../../GamePortal";
 import { showInGameAlert, showInGameConfirm } from "../../InGameModal";
 import { TogglePauseIntentEvent } from "../../InputHandler";
 import { PauseGameIntentEvent, SendWinnerEvent } from "../../Transport";
+import { consumeResumedPaused } from "../../SaveGame";
 import { ToggleWarPlanPanelEvent } from "../../WarPlan";
 import { homeHref, showToast, translateText } from "../../Utils";
 import { GameView } from "../../view";
@@ -139,6 +140,11 @@ export class GameRightSidebar extends LitElement implements Controller {
   }
 
   tick() {
+    // 이어하기 직후: 판은 일시정지 상태로 열린다. 표시도 맞춰 첫 클릭이 재개가 되게 한다.
+    if (consumeResumedPaused()) {
+      this.isPaused = true;
+      this.requestUpdate();
+    }
     // Timer logic
     // Check if the player is the lobby creator
     if (!this.isLobbyCreator && this.game.myPlayer()?.isLobbyCreator()) {

@@ -27,6 +27,8 @@ export interface SavedMatch {
   savedAt: number;
   gameStartInfo: WireGameStartInfo;
   turns: Turn[];
+  /** 일시정지 중 접수돼 아직 턴에 실리지 않은 위임 인텐트(긴급 중지 포함). */
+  pending?: StampedIntent[];
 }
 
 export interface SavedMatchSummary {
@@ -148,6 +150,7 @@ export async function clearSavedMatch(): Promise<void> {
 export function buildSavedMatch(
   gameStartInfo: WireGameStartInfo,
   turns: Turn[],
+  pending: StampedIntent[] = [],
 ): SavedMatch {
   return {
     format: SAVE_FORMAT,
@@ -155,6 +158,7 @@ export function buildSavedMatch(
     savedAt: Date.now(),
     gameStartInfo,
     turns,
+    pending,
   };
 }
 
@@ -182,8 +186,18 @@ export function takeResume(gameID: string): SavedMatch | null {
   if (resume === null || resume.gameStartInfo.gameID !== gameID) return null;
   const m = resume;
   resume = null;
-  resumedDelegation = lastDelegationIntents(m.turns);
+  resumedDelegation = lastDelegationIntents(m.turns, m.pending ?? []);
+  resumedPaused = true;
   return m;
+}
+
+let resumedPaused = false;
+
+/** 이어하기 직후 HUD의 일시정지 표시를 실제 상태(정지)에 맞추는 1회용 표식. */
+export function consumeResumedPaused(): boolean {
+  const v = resumedPaused;
+  resumedPaused = false;
+  return v;
 }
 
 export function consumeResumedDelegation(): ResumedDelegation | null {
@@ -193,10 +207,14 @@ export function consumeResumedDelegation(): ResumedDelegation | null {
 }
 
 /** The latest delegation settings the player sent, replayed from the turns. */
-export function lastDelegationIntents(turns: Turn[]): ResumedDelegation {
+export function lastDelegationIntents(
+  turns: Turn[],
+  pending: StampedIntent[] = [],
+): ResumedDelegation {
   const out: ResumedDelegation = {};
-  for (const t of turns) {
-    for (const i of t.intents) {
+  const all = [...turns.flatMap((t) => t.intents), ...pending];
+  {
+    for (const i of all) {
       if (i.type === "set_defense_delegation") out.defense = i;
       else if (i.type === "set_economy_delegation") out.economy = i;
     }
