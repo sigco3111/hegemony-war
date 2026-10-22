@@ -163,16 +163,27 @@ export class LocalServer {
         // (클라이언트에는 아직 아무것도 보내지 않았으므로 rejoin이 전부 전달한다.)
         // 일시정지 중 접수돼 저장된 위임 인텐트는 재개 후 첫 턴에 적용한다.
         this.intents = [...(saved.pending ?? [])] as StampedIntent[];
-        this.turns.push({
-          turnNumber: this.turns.length,
-          intents: [
-            {
-              type: "toggle_pause",
-              paused: true,
-              clientID: this.clientID,
-            } as StampedIntent,
-          ],
-        });
+        // 저장이 이미 일시정지 상태(마지막 pause 인텐트가 정지)라면 턴을 더하지 않는다.
+        // 그래야 저장→이어하기를 반복해도 시뮬레이션이 한 틱도 더 가지 않는다.
+        // 실행 중에 저장된 경우(자동 저장)만 정지시키려고 pause 턴 하나를 더한다.
+        let alreadyPaused = false;
+        for (const t of this.turns) {
+          for (const i of t.intents) {
+            if (i.type === "toggle_pause") alreadyPaused = i.paused === true;
+          }
+        }
+        if (!alreadyPaused) {
+          this.turns.push({
+            turnNumber: this.turns.length,
+            intents: [
+              {
+                type: "toggle_pause",
+                paused: true,
+                clientID: this.clientID,
+              } as StampedIntent,
+            ],
+          });
+        }
         this.paused = true;
       }
       this.installSaveListeners();
