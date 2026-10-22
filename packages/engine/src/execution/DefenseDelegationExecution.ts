@@ -6,6 +6,8 @@ import {
 import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
 import { simpleHash } from "@openfront/engine-lib/Util";
 import { z } from "zod";
+import { DefensePriority } from "@openfront/engine-api/game/DefenseDelegation";
+import { TileRef } from "@openfront/engine-api/game/GameMap";
 import { Execution, Game, Player } from "../game/Game";
 import { execSnapshotType } from "../snapshot/ExecutionSnapshot";
 import type {
@@ -45,11 +47,32 @@ export class DefenseDelegationExecution implements Execution {
    */
   private anchorGold: bigint = 0n;
 
+  /**
+   * 개선 9 detailed settings. The intent carries them all optional; the
+   * execution normalizes them so the behavior always sees a full object.
+   * `zoneTile` is the protected-zone center (null = delegate anywhere).
+   */
+  private buildPosts: boolean;
+  private buildSams: boolean;
+  private priority: DefensePriority;
+  private zoneTile: TileRef | null;
+
   constructor(
     public player: Player,
     private enabled: boolean,
     private reservePercent: number,
-  ) {}
+    options: {
+      buildPosts?: boolean;
+      buildSams?: boolean;
+      priority?: DefensePriority;
+      zoneTile?: TileRef | null;
+    } = {},
+  ) {
+    this.buildPosts = options.buildPosts ?? true;
+    this.buildSams = options.buildSams ?? true;
+    this.priority = options.priority ?? "reactive";
+    this.zoneTile = options.zoneTile ?? null;
+  }
 
   isActive(): boolean {
     return this.active;
@@ -99,6 +122,10 @@ export class DefenseDelegationExecution implements Execution {
       enabled: this.enabled,
       reservePercent: this.reservePercent,
       anchorGold: this.anchorGold,
+      buildPosts: this.buildPosts,
+      buildSams: this.buildSams,
+      priority: this.priority,
+      zoneTile: this.zoneTile,
     };
     if (this.behavior?.tryBuild(settings)) {
       this.lastBuildTick = ticks;
@@ -113,6 +140,10 @@ export class DefenseDelegationExecution implements Execution {
       anchorGold: this.anchorGold.toString(),
       lastBuildTick: this.lastBuildTick,
       random: w.random(this.random!),
+      buildPosts: this.buildPosts,
+      buildSams: this.buildSams,
+      priority: this.priority,
+      zoneTile: this.zoneTile === null ? null : this.zoneTile,
     });
   }
 
@@ -122,6 +153,10 @@ export class DefenseDelegationExecution implements Execution {
     this.reservePercent = s.reservePercent;
     this.anchorGold = BigInt(s.anchorGold ?? "0");
     this.lastBuildTick = s.lastBuildTick;
+    this.buildPosts = s.buildPosts ?? true;
+    this.buildSams = s.buildSams ?? true;
+    this.priority = s.priority ?? "reactive";
+    this.zoneTile = s.zoneTile ?? null;
     this.random = r.random(s.random);
     this.behavior = new DefenseDelegationBehavior(
       this.random,
@@ -140,6 +175,12 @@ const DefenseDelegationStateSchema = z.object({
   anchorGold: z.string().optional(),
   lastBuildTick: zInt(),
   random: zRandom(),
+  // 개선 9 detailed settings; optional so pre-detail snapshots restore with
+  // the original behavior (everything on, reactive first, no zone).
+  buildPosts: z.boolean().optional(),
+  buildSams: z.boolean().optional(),
+  priority: z.enum(["reactive", "proactive", "sam"]).optional(),
+  zoneTile: zInt().nullable().optional(),
 });
 type DefenseDelegationState = z.infer<typeof DefenseDelegationStateSchema>;
 

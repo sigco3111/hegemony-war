@@ -9,10 +9,13 @@ import { GameUpdateType } from "@openfront/engine-api/game/GameUpdates";
 import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
 import { Game, Player } from "../../game/Game";
 import { ConstructionExecution } from "../ConstructionExecution";
+import { delegationZoneRadius } from "@openfront/engine-api/game/DefenseDelegation";
+import { DefensePriority } from "@openfront/engine-api/game/DefenseDelegation";
 import {
   attackFrontTiles,
   borderTilesFacing,
   countDefensePostsNearFront,
+  DefenseZone,
   DEFENSE_POST_FRONT_BAND,
   DEFENSE_POST_FRONT_DIST_PER_RATIO,
   DEFENSE_POST_FRONT_MIN_DIST,
@@ -31,6 +34,18 @@ export interface DefenseDelegationSettings {
   enabled: boolean;
   /** Share of the anchor treasury (0-90) the delegate must always keep. */
   reservePercent: number;
+  /** 개선 9: may the delegate build defense posts? */
+  buildPosts: boolean;
+  /** 개선 9: may the delegate build SAM launchers? */
+  buildSams: boolean;
+  /** 개선 9: which build kind is attempted first when several are needed. */
+  priority: DefensePriority;
+  /**
+   * 개선 9: protected-zone center. When set, every delegated build must land
+   * within the shared zone radius of this tile; null lets the delegate build
+   * anywhere.
+   */
+  zoneTile: TileRef | null;
   /**
    * Treasury captured when the delegation switched from off to on. The
    * reserve floor is reservePercent of THIS anchor, not of the current
@@ -74,17 +89,56 @@ export class DefenseDelegationBehavior {
   ) {}
 
   /**
+   * Resolves the protected zone for this attempt, or null for an invalid /
+   * unset zone tile. The radius comes from the shared rule the client uses
+   * to draw the zone circle, so what the player sees is what is enforced.
+   */
+  private zone(settings: DefenseDelegationSettings): DefenseZone | null {
+    if (settings.zoneTile === null) return null;
+    const x = this.game.x(settings.zoneTile);
+    const y = this.game.y(settings.zoneTile);
+    if (!this.game.isValidCoord(x, y)) return null;
+    return {
+      center: settings.zoneTile,
+      radius: delegationZoneRadius(
+        this.game.map().width(),
+        this.game.map().height(),
+      ),
+    };
+  }
+
+  /**
    * One build attempt. Returns the construction it started, or null when
-   * nothing was needed, affordable, or placeable. Reactive defense posts
-   * first, then proactive border posts, then SAM cover.
+   * nothing was needed, affordable, or placeable. The player's priority
+   * picks which kind is tried first; the rest follow in the default order
+   * (reactive posts, proactive posts, SAM cover). Structure kinds the
+   * player switched off are skipped entirely.
    */
   tryBuild(settings: DefenseDelegationSettings): UnitType | null {
     if (!settings.enabled || !this.player.isAlive()) return null;
-    return (
-      this.tryReactiveDefensePost(settings) ??
-      this.tryProactiveDefensePost(settings) ??
-      this.trySamLauncher(settings)
-    );
+    const zone = this.zone(settings);
+    const reactive = () => this.tryReactiveDefensePost(settings, zone);
+    const proactive = () => this.tryProactiveDefensePost(settings, zone);
+    const sam = () => this.trySamLauncher(settings, zone);
+    const attempts: Record<DefensePriority, () => UnitType | null> = {
+      reactive,
+      proactive,
+      sam,
+    };
+    const order: DefensePriority[] =
+      settings.priority === "proactive"
+        ? ["proactive", "reactive", "sam"]
+        : settings.priority === "sam"
+          ? ["sam", "reactive", "proactive"]
+          : ["reactive", "proactive", "sam"];
+    for (const kind of order) {
+      if (kind === "sam" ? !settings.buildSams : !settings.buildPosts) {
+        continue;
+      }
+      const built = attempts[kind]();
+      if (built !== null) return built;
+    }
+    return null;
   }
 
   private cost(type: UnitType): Gold {
@@ -129,6 +183,7 @@ export class DefenseDelegationBehavior {
    */
   private tryReactiveDefensePost(
     settings: DefenseDelegationSettings,
+    zone: DefenseZone | null,
   ): UnitType | null {
     const config = this.game.config();
     if (config.isUnitDisabled(UnitType.DefensePost)) return null;
@@ -160,6 +215,7 @@ export class DefenseDelegationBehavior {
         frontTiles,
         maxDist,
         allowed,
+        zone ?? undefined,
       ) >= allowed
     ) {
       return null;
@@ -171,6 +227,7 @@ export class DefenseDelegationBehavior {
       frontTiles,
       minDist,
       maxDist,
+      zone ?? undefined,
     );
     if (tile === null) return null;
     return this.build(settings, UnitType.DefensePost, tile);
@@ -183,6 +240,7 @@ export class DefenseDelegationBehavior {
    */
   private tryProactiveDefensePost(
     settings: DefenseDelegationSettings,
+    zone: DefenseZone | null,
   ): UnitType | null {
     const config = this.game.config();
     if (config.isUnitDisabled(UnitType.DefensePost)) return null;
@@ -221,6 +279,7 @@ export class DefenseDelegationBehavior {
         frontTiles,
         range * 1.5,
         threats.size,
+        zone ?? undefined,
       ) >= threats.size
     ) {
       return null;
@@ -232,6 +291,7 @@ export class DefenseDelegationBehavior {
       frontTiles,
       range * PROACTIVE_DEFENSE_POST_MIN_DIST,
       range * PROACTIVE_DEFENSE_POST_MAX_DIST,
+      zone ?? undefined,
     );
     if (tile === null) return null;
     return this.build(settings, UnitType.DefensePost, tile);
@@ -244,6 +304,7 @@ export class DefenseDelegationBehavior {
    */
   private trySamLauncher(
     settings: DefenseDelegationSettings,
+    zone: DefenseZone | null,
   ): UnitType | null {
     const config = this.game.config();
     if (config.isUnitDisabled(UnitType.SAMLauncher)) return null;
@@ -256,9 +317,16 @@ export class DefenseDelegationBehavior {
     if (!this.withinBudget(settings, UnitType.SAMLauncher)) return null;
 
     const player = this.player;
+    const zoneSquared = zone === null ? 0 : zone.radius ** 2;
     const structures = player
       .units()
-      .filter((u) => SAM_PROTECTED_TYPES.includes(u.type()));
+      .filter((u) => SAM_PROTECTED_TYPES.includes(u.type()))
+      .filter(
+        (u) =>
+          zone === null ||
+          this.game.euclideanDistSquared(u.tile(), zone.center) <=
+            zoneSquared,
+      );
     if (structures.length === 0) return null;
 
     const cityCount = player.units(UnitType.City).length;
@@ -292,6 +360,12 @@ export class DefenseDelegationBehavior {
       if (!this.game.isValidCoord(x, y)) continue;
       const t = this.game.ref(x, y);
       if (this.game.owner(t) !== player) continue;
+      if (
+        zone !== null &&
+        this.game.euclideanDistSquared(t, zone.center) > zoneSquared
+      ) {
+        continue;
+      }
       if (!player.canBuild(UnitType.SAMLauncher, t)) continue;
       let cover = 0;
       for (const s of uncovered) {

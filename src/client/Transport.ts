@@ -57,6 +57,7 @@ import {
   SendToggleGameStartTimer,
   SendUpdateGameConfigIntentEvent,
 } from "./LobbyEvents";
+import { DefensePriority } from "@openfront/engine-api/game/DefenseDelegation";
 import { LocalServer } from "./LocalServer";
 import { describeSocketClose } from "./SocketClose";
 import { homeHref, translateText } from "./Utils";
@@ -67,11 +68,16 @@ export class PauseGameIntentEvent implements GameEvent {
 }
 
 // 개선6: toggle the AI-managed rear-defense delegation and its treasury
-// reserve share (0-90). Sent from the delegation panel.
+// reserve share (0-90). Sent from the delegation panel. 개선 9 adds the
+// detailed settings; the panel always sends its full current settings.
 export class SetDefenseDelegationEvent implements GameEvent {
   constructor(
     public readonly enabled: boolean,
     public readonly reservePercent: number,
+    public readonly buildPosts: boolean = true,
+    public readonly buildSams: boolean = true,
+    public readonly priority: DefensePriority = "reactive",
+    public readonly zoneTile: number | null = null,
   ) {}
 }
 
@@ -920,6 +926,10 @@ export class Transport {
       type: "set_defense_delegation",
       enabled: event.enabled,
       reservePercent: event.reservePercent,
+      buildPosts: event.buildPosts,
+      buildSams: event.buildSams,
+      priority: event.priority,
+      zoneTile: event.zoneTile,
     });
   }
 

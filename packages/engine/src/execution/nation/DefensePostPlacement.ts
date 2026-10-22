@@ -96,8 +96,19 @@ export function attackFrontTiles(
 }
 
 /**
+ * 개선 9: a delegation protected zone — only tiles within `radius` of
+ * `center` are valid build spots, and only posts inside it count as cover.
+ */
+export interface DefenseZone {
+  center: TileRef;
+  radius: number;
+}
+
+/**
  * Counts defense posts within `range` of any front tile.
- * `cap` short-circuits the scan once that many are found.
+ * `cap` short-circuits the scan once that many are found. With `zone`, only
+ * posts inside the zone count — a post outside the protected area must not
+ * satisfy the zone's coverage.
  */
 export function countDefensePostsNearFront(
   game: Game,
@@ -105,13 +116,21 @@ export function countDefensePostsNearFront(
   frontTiles: TileRef[],
   range: number,
   cap?: number,
+  zone?: DefenseZone,
 ): number {
   if (frontTiles.length === 0) return 0;
 
   const rangeSquared = range ** 2;
+  const zoneSquared = zone === undefined ? 0 : zone.radius ** 2;
 
   let count = 0;
   for (const dp of player.units(UnitType.DefensePost)) {
+    if (
+      zone !== undefined &&
+      game.euclideanDistSquared(dp.tile(), zone.center) > zoneSquared
+    ) {
+      continue;
+    }
     for (const frontTile of frontTiles) {
       if (game.euclideanDistSquared(dp.tile(), frontTile) <= rangeSquared) {
         count++;
@@ -136,8 +155,10 @@ export function findDefensePostTile(
   frontTiles: TileRef[],
   minDist: number,
   maxDist: number,
+  zone?: DefenseZone,
 ): TileRef | null {
   if (frontTiles.length === 0) return null;
+  const zoneSquared = zone === undefined ? 0 : zone.radius ** 2;
 
   const spreadRangeSquared = (game.config().defensePostRange() * 1.5) ** 2;
   const existingDPTiles = player
@@ -164,6 +185,12 @@ export function findDefensePostTile(
     const t = game.ref(x, y);
     if (game.owner(t) !== player) continue;
     if (nearExistingPost(t)) continue;
+    if (
+      zone !== undefined &&
+      game.euclideanDistSquared(t, zone.center) > zoneSquared
+    ) {
+      continue;
+    }
     let nearestSquared = Infinity;
     for (const ft of frontTiles) {
       nearestSquared = Math.min(

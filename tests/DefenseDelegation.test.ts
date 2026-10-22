@@ -9,6 +9,8 @@ import {
   DelegationNoteUpdate,
   GameUpdateType,
 } from "@openfront/engine-api/game/GameUpdates";
+import { delegationZoneRadius } from "@openfront/engine-api/game/DefenseDelegation";
+import { SetDefenseDelegationIntentSchema } from "@openfront/engine-api/Schemas";
 import { AttackExecution } from "@openfront/engine/execution/AttackExecution";
 import { DefenseDelegationExecution } from "@openfront/engine/execution/DefenseDelegationExecution";
 import { Game, Player } from "@openfront/engine/game/Game";
@@ -227,6 +229,173 @@ describe("DefenseDelegation (engine tick loop, deployed wiring)", () => {
     game.addExecution(new DefenseDelegationExecution(player, true, 0));
     const { notes } = tickCollecting(game, 150);
     expect(notes).toHaveLength(0);
+  });
+
+  it("SAM priority builds a SAM before a reactive post when both are needed", async () => {
+    const { game, player, enemy } = await setupDelegation();
+    const half = Math.floor(game.map().width() / 2);
+    player.buildUnit(UnitType.City, game.ref(half - 20, 100), {});
+    game.addExecution(
+      new DefenseDelegationExecution(player, true, 0, { priority: "sam" }),
+    );
+    game.addExecution(new AttackExecution(50_000, enemy, player.id()));
+
+    const { notes } = tickCollecting(game, MAX_TICKS, (n) => n.length > 0);
+    expect(notes.length).toBeGreaterThan(0);
+    expect(notes[0].unit).toBe(UnitType.SAMLauncher);
+  });
+
+  it("structure toggles: posts off means no posts under attack, SAMs still build", async () => {
+    const { game, player, enemy } = await setupDelegation();
+    const half = Math.floor(game.map().width() / 2);
+    player.buildUnit(UnitType.City, game.ref(half - 20, 100), {});
+    game.addExecution(
+      new DefenseDelegationExecution(player, true, 0, { buildPosts: false }),
+    );
+    game.addExecution(new AttackExecution(50_000, enemy, player.id()));
+
+    const { notes } = tickCollecting(game, MAX_TICKS, (n) => n.length > 0);
+    expect(notes.length).toBeGreaterThan(0);
+    expect(notes.every((n) => n.unit === UnitType.SAMLauncher)).toBe(true);
+    expect(player.units(UnitType.DefensePost)).toHaveLength(0);
+  });
+
+  it("structure toggles: SAMs off means no SAM cover, posts still build", async () => {
+    const { game, player, enemy } = await setupDelegation();
+    const half = Math.floor(game.map().width() / 2);
+    player.buildUnit(UnitType.City, game.ref(half - 20, 100), {});
+    game.addExecution(
+      new DefenseDelegationExecution(player, true, 0, { buildSams: false }),
+    );
+    game.addExecution(new AttackExecution(50_000, enemy, player.id()));
+
+    const { notes } = tickCollecting(game, MAX_TICKS, (n) => n.length > 0);
+    expect(notes.length).toBeGreaterThan(0);
+    expect(notes.every((n) => n.unit === UnitType.DefensePost)).toBe(true);
+    expect(player.units(UnitType.SAMLauncher)).toHaveLength(0);
+  });
+
+  it("both structure toggles off: the delegate stays idle under attack", async () => {
+    const { game, player, enemy } = await setupDelegation();
+    game.addExecution(
+      new DefenseDelegationExecution(player, true, 0, {
+        buildPosts: false,
+        buildSams: false,
+      }),
+    );
+    game.addExecution(new AttackExecution(50_000, enemy, player.id()));
+    expect(tickCollecting(game, 150).notes).toHaveLength(0);
+  });
+
+  it("protected zone far from the front holds; a zone at the front builds inside its radius", async () => {
+    const { game, player, enemy } = await setupDelegation();
+    const w = game.map().width();
+    const h = game.map().height();
+    const radius = delegationZoneRadius(w, h);
+    const half = Math.floor(w / 2);
+
+    // Find an own land tile as far left as possible (far from the x=half
+    // front): the delegate must NOT react to an attack on the front while
+    // the zone only covers this far corner.
+    let farTile: number | null = null;
+    outer: for (let x = 0; x < half - radius; x++) {
+      for (let y = 0; y < h; y++) {
+        const t = game.ref(x, y);
+        if (game.map().isLand(t)) {
+          farTile = t;
+          break outer;
+        }
+      }
+    }
+    expect(farTile).not.toBeNull();
+
+    game.addExecution(
+      new DefenseDelegationExecution(player, true, 0, { zoneTile: farTile }),
+    );
+    game.addExecution(new AttackExecution(50_000, enemy, player.id()));
+    expect(tickCollecting(game, 150).notes).toHaveLength(0);
+    expect(player.units(UnitType.DefensePost)).toHaveLength(0);
+
+    // Move the zone onto the front band: now the same attack gets a post,
+    // and it must land inside the drawn radius.
+    const zoneTile = game.ref(half - 30, 100);
+    expect(game.map().isLand(zoneTile)).toBe(true);
+    game.addExecution(
+      new DefenseDelegationExecution(player, true, 0, { zoneTile }),
+    );
+    const { notes } = tickCollecting(game, MAX_TICKS, (n) => n.length > 0);
+    expect(notes.length).toBeGreaterThan(0);
+    expect(notes[0].unit).toBe(UnitType.DefensePost);
+    const dist2 = game.euclideanDistSquared(notes[0].tile, zoneTile);
+    expect(dist2).toBeLessThanOrEqual(radius ** 2);
+  });
+
+  it("protected zone limits SAM cover: the launcher lands inside the zone radius", async () => {
+    const { game, player } = await setupDelegation();
+    const w = game.map().width();
+    const h = game.map().height();
+    const radius = delegationZoneRadius(w, h);
+    const half = Math.floor(w / 2);
+    // Two cities; the zone only covers the one at (half-20, 100).
+    player.buildUnit(UnitType.City, game.ref(half - 20, 100), {});
+    player.buildUnit(UnitType.City, game.ref(half - 40, 100), {});
+    const zoneTile = game.ref(half - 20, 100);
+    game.addExecution(
+      new DefenseDelegationExecution(player, true, 0, { zoneTile }),
+    );
+
+    const { notes } = tickCollecting(game, MAX_TICKS, (n) => n.length > 0);
+    expect(notes.length).toBeGreaterThan(0);
+    expect(notes[0].unit).toBe(UnitType.SAMLauncher);
+    const dist2 = game.euclideanDistSquared(notes[0].tile, zoneTile);
+    expect(dist2).toBeLessThanOrEqual(radius ** 2);
+  });
+
+  it("settings replacement keeps the anchor across a zone change while on", async () => {
+    const { game, player, enemy } = await setupDelegation();
+    const cost = game.unitInfo(UnitType.DefensePost).cost(game, player);
+    player.addGold(10n * cost - player.gold());
+    const half = Math.floor(game.map().width() / 2);
+    const zoneTile = game.ref(half - 30, 100);
+    game.addExecution(new DefenseDelegationExecution(player, true, 50));
+    // Zone change while on: new execution inherits the 10c anchor, so the
+    // 90% floor is 9c and a 1c build from balance 9c must hold.
+    game.addExecution(
+      new DefenseDelegationExecution(player, true, 90, { zoneTile }),
+    );
+    player.removeGold(cost); // balance 9c
+    game.addExecution(new AttackExecution(50_000, enemy, player.id()));
+    expect(tickCollecting(game, 100).notes).toHaveLength(0);
+  });
+
+  it("intent schema: old plain toggle payloads and new detailed payloads both parse", () => {
+    const legacy = SetDefenseDelegationIntentSchema.parse({
+      type: "set_defense_delegation",
+      enabled: true,
+      reservePercent: 50,
+    });
+    expect(legacy.buildPosts).toBeUndefined();
+    expect(legacy.zoneTile).toBeUndefined();
+
+    const detailed = SetDefenseDelegationIntentSchema.parse({
+      type: "set_defense_delegation",
+      enabled: true,
+      reservePercent: 25,
+      buildPosts: true,
+      buildSams: false,
+      priority: "sam",
+      zoneTile: 1234,
+    });
+    expect(detailed.priority).toBe("sam");
+    expect(detailed.zoneTile).toBe(1234);
+
+    const cleared = SetDefenseDelegationIntentSchema.parse({
+      type: "set_defense_delegation",
+      enabled: true,
+      reservePercent: 25,
+      zoneTile: null,
+    });
+    expect(cleared.zoneTile).toBeNull();
   });
 
   it("covers unprotected structures with one SAM launcher per city cap", async () => {

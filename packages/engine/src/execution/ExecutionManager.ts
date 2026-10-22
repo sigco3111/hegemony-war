@@ -150,6 +150,12 @@ export class Executor {
           player,
           intent.enabled,
           intent.reservePercent,
+          {
+            buildPosts: intent.buildPosts,
+            buildSams: intent.buildSams,
+            priority: intent.priority,
+            zoneTile: intent.zoneTile ?? null,
+          },
         );
       default:
         throw new Error(`intent type ${intent} not found`);

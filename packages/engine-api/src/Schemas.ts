@@ -16,6 +16,7 @@ import {
   Trios,
   UnitType,
 } from "./game/GameTypes";
+import { DEFENSE_PRIORITIES } from "./game/DefenseDelegation";
 import { PlayerStatsSchema } from "./StatsSchemas";
 
 export type GameID = string;
@@ -566,11 +567,24 @@ export const ToggleGameStartTimerIntentSchema = z.object({
 });
 
 // 개선6 rear-defense delegation: toggle the AI-managed rear defense and set
-// the share of the treasury it must always leave untouched.
+// the share of the treasury it must always leave untouched. 개선 9 adds the
+// detailed settings; all are optional so an older client's plain toggle
+// intent still parses, and a missing field keeps its original behavior.
 export const SetDefenseDelegationIntentSchema = z.object({
   type: z.literal("set_defense_delegation"),
   enabled: z.boolean(),
   reservePercent: zb.uint({ max: 90 }),
+  /** May the delegate build defense posts (reactive and proactive)? */
+  buildPosts: z.boolean().optional(),
+  /** May the delegate build SAM launchers? */
+  buildSams: z.boolean().optional(),
+  /** Which build kind is attempted first when several are needed. */
+  priority: z.enum(DEFENSE_PRIORITIES).optional(),
+  /**
+   * Protected-zone center; the delegate only builds within the shared zone
+   * radius of this tile. null clears the zone (delegate anywhere).
+   */
+  zoneTile: zb.uint().nullable().optional(),
 });
 
 export const IntentSchema = z.discriminatedUnion("type", [

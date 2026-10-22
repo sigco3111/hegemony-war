@@ -29,6 +29,10 @@ import {
 } from "@openfront/shared/WireSchemas";
 import { ClientEnv } from "../client/ClientEnv";
 import { reloadForUpdate, translateText } from "../client/Utils";
+import {
+  DelegationZonePickedEvent,
+  DelegationZonePickModeEvent,
+} from "./DelegationZoneEvents";
 import { MapLayerController } from "./controllers/MapLayerController";
 import { isDesktopShell } from "./DesktopShell";
 import { GameMetrics } from "./GameMetrics";
@@ -985,6 +989,11 @@ export class ClientGameRunner {
     }, 20000);
 
     this.eventBus.on(MouseUpEvent, this.inputEvent.bind(this));
+    // 개선 9: while the delegation panel is in zone-pick mode, the next map
+    // click chooses the protected-zone center instead of attacking.
+    this.eventBus.on(DelegationZonePickModeEvent, (e) => {
+      this.delegationZonePick = e.active;
+    });
     this.eventBus.on(MouseMoveEvent, this.onMouseMove.bind(this));
     this.eventBus.on(AutoUpgradeEvent, this.autoUpgradeEvent.bind(this));
     this.eventBus.on(
@@ -1223,6 +1232,9 @@ export class ClientGameRunner {
     }
   }
 
+  /** 개선 9: true while the delegation panel waits for a zone-pick click. */
+  private delegationZonePick = false;
+
   private inputEvent(event: MouseUpEvent) {
     if (!this.isActive || this.renderer.uiState.ghostStructure !== null) {
       return;
@@ -1246,6 +1258,11 @@ export class ClientGameRunner {
       return;
     }
     if (this.gameView.inSpawnPhase()) {
+      return;
+    }
+    if (this.delegationZonePick) {
+      this.delegationZonePick = false;
+      this.eventBus.emit(new DelegationZonePickedEvent(tile));
       return;
     }
     if (this.myPlayer === null) {
