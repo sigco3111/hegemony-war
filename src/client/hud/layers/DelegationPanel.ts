@@ -3,6 +3,11 @@ import {
   DefensePriority,
   delegationZoneRadius,
 } from "@openfront/engine-api/game/DefenseDelegation";
+import {
+  ECONOMY_MAX_TARGET,
+  ECONOMY_PRIORITIES,
+  EconomyPriority,
+} from "@openfront/engine-api/game/EconomyDelegation";
 import { GameType, UnitType } from "@openfront/engine-api/game/GameTypes";
 import {
   DelegationNoteUpdate,
@@ -98,6 +103,10 @@ export class DelegationPanel extends LitElement implements Controller {
   @state() private econReservePercent = 50;
   @state() private econCities = true;
   @state() private econFactories = true;
+  /** 개선 14: build order and per-structure target counts (0 = unlimited). */
+  @state() private econPriority: EconomyPriority = "balanced";
+  @state() private econCityTarget = 0;
+  @state() private econFactoryTarget = 0;
   /**
    * Treasury when the economy delegation was switched on; mirrors the
    * engine anchor. Its floor stacks ON TOP of the defense floor, so the
@@ -359,6 +368,9 @@ export class DelegationPanel extends LitElement implements Controller {
         this.econReservePercent,
         this.econCities,
         this.econFactories,
+        this.econPriority,
+        this.econCityTarget,
+        this.econFactoryTarget,
       ),
     );
   }
@@ -404,6 +416,28 @@ export class DelegationPanel extends LitElement implements Controller {
   private toggleEconFactories(): void {
     this.econFactories = !this.econFactories;
     if (this.econEnabled) this.emitEconSettings();
+  }
+
+  /** 개선 14: changing the order/targets applies immediately. */
+  private setEconPriority(priority: EconomyPriority): void {
+    this.econPriority = priority;
+    if (this.econEnabled) this.emitEconSettings();
+  }
+
+  private stepEconTarget(kind: "city" | "factory", delta: number): void {
+    const cur =
+      kind === "city" ? this.econCityTarget : this.econFactoryTarget;
+    const next = Math.max(0, Math.min(ECONOMY_MAX_TARGET, cur + delta));
+    if (next === cur) return;
+    if (kind === "city") this.econCityTarget = next;
+    else this.econFactoryTarget = next;
+    if (this.econEnabled) this.emitEconSettings();
+  }
+
+  private econTargetLabel(target: number): string {
+    return target === 0
+      ? translateText("delegation_panel.econ_target_unlimited")
+      : String(target);
   }
 
   private actionLabel(unit: UnitType): string {
@@ -496,6 +530,11 @@ export class DelegationPanel extends LitElement implements Controller {
           text: k("dec_need_tiles", { have: n(it.have), need: n(it.need) }),
           warn: false,
         };
+      case "targetMet":
+        return {
+          text: k("dec_target_met", { have: n(it.have), need: n(it.need) }),
+          warn: false,
+        };
       default:
         return { text: k("dec_need_city"), warn: false };
     }
@@ -538,6 +577,21 @@ export class DelegationPanel extends LitElement implements Controller {
           ${translateText("delegation_panel.dec_title")}
         </div>
         <div class="text-white/80 tabular-nums">${head}</div>
+        ${economy && st.progress !== undefined && st.progress.length > 0
+          ? html`<div
+              class="mt-1 text-cyan-200/80 tabular-nums"
+              data-testid="econ-progress"
+            >
+              ${translateText("delegation_panel.dec_progress", {
+                parts: st.progress
+                  .map(
+                    (pr) =>
+                      `${this.unitName(pr.unit)} ${pr.owned}/${pr.target === 0 ? translateText("delegation_panel.econ_target_unlimited") : pr.target}`,
+                  )
+                  .join(" · "),
+              })}
+            </div>`
+          : nothing}
         ${st.items.map((it) => {
           const line = this.itemLine(it);
           return html`<div
@@ -848,6 +902,73 @@ export class DelegationPanel extends LitElement implements Controller {
                 >
                   ${translateText("delegation_panel.struct_factory")}
                 </button>
+              </div>
+              <div class="mt-3">
+                <div class="text-xs font-bold text-white/60 mb-1">
+                  ${translateText("delegation_panel.econ_priority")}
+                </div>
+                <div class="flex gap-2" data-testid="econ-priority">
+                  ${ECONOMY_PRIORITIES.map(
+                    (p) => html`
+                      <button
+                        class="flex-1 rounded-lg px-2 py-1.5 text-xs font-bold transition-colors cursor-pointer ${this
+                          .econPriority === p
+                          ? "bg-sky-600 text-white"
+                          : "bg-slate-700 text-white/70 hover:bg-slate-600"}"
+                        data-testid="econ-priority-${p}"
+                        @click=${() => this.setEconPriority(p)}
+                      >
+                        ${translateText(`delegation_panel.econ_priority_${p}`)}
+                      </button>
+                    `,
+                  )}
+                </div>
+              </div>
+              <div class="mt-3">
+                <div class="text-xs font-bold text-white/60 mb-1">
+                  ${translateText("delegation_panel.econ_targets")}
+                </div>
+                ${(
+                  [
+                    ["city", this.econCityTarget],
+                    ["factory", this.econFactoryTarget],
+                  ] as const
+                ).map(
+                  ([kind, target]) => html`
+                    <div class="flex items-center gap-2 mt-1.5">
+                      <span class="flex-1 text-xs text-white/70">
+                        ${kind === "city"
+                          ? translateText("delegation_panel.struct_city")
+                          : translateText("delegation_panel.struct_factory")}
+                      </span>
+                      <button
+                        class="w-8 rounded-lg px-2 py-1 text-xs font-bold bg-slate-700 text-white/80 hover:bg-slate-600 transition-colors cursor-pointer disabled:opacity-40"
+                        ?disabled=${target === 0}
+                        data-testid="econ-target-${kind}-minus"
+                        @click=${() => this.stepEconTarget(kind, -1)}
+                      >
+                        −
+                      </button>
+                      <span
+                        class="w-14 text-center text-xs text-cyan-200 tabular-nums"
+                        data-testid="econ-target-${kind}"
+                      >
+                        ${this.econTargetLabel(target)}
+                      </span>
+                      <button
+                        class="w-8 rounded-lg px-2 py-1 text-xs font-bold bg-slate-700 text-white/80 hover:bg-slate-600 transition-colors cursor-pointer disabled:opacity-40"
+                        ?disabled=${target >= ECONOMY_MAX_TARGET}
+                        data-testid="econ-target-${kind}-plus"
+                        @click=${() => this.stepEconTarget(kind, 1)}
+                      >
+                        +
+                      </button>
+                    </div>
+                  `,
+                )}
+                <p class="text-xs text-white/50 mt-1">
+                  ${translateText("delegation_panel.econ_targets_hint")}
+                </p>
               </div>
               <div class="flex gap-2 mt-3 mb-2">
                 ${RESERVE_OPTIONS.map(

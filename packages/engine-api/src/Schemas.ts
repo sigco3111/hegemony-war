@@ -17,6 +17,10 @@ import {
   UnitType,
 } from "./game/GameTypes";
 import { DEFENSE_PRIORITIES } from "./game/DefenseDelegation";
+import {
+  ECONOMY_MAX_TARGET,
+  ECONOMY_PRIORITIES,
+} from "./game/EconomyDelegation";
 import { PlayerStatsSchema } from "./StatsSchemas";
 
 export type GameID = string;
@@ -603,6 +607,12 @@ export const SetEconomyDelegationIntentSchema = z.object({
   buildCities: z.boolean().optional(),
   /** May the delegate build factories? */
   buildFactories: z.boolean().optional(),
+  /** 개선 14: which structure is attempted first when several are due. */
+  priority: z.enum(ECONOMY_PRIORITIES).optional(),
+  /** 개선 14: stop building cities at this count (0 = unlimited). */
+  cityTarget: zb.uint({ max: ECONOMY_MAX_TARGET }).optional(),
+  /** 개선 14: stop building factories at this count (0 = unlimited). */
+  factoryTarget: zb.uint({ max: ECONOMY_MAX_TARGET }).optional(),
 });
 
 export const IntentSchema = z.discriminatedUnion("type", [

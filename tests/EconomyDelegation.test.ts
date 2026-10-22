@@ -85,7 +85,13 @@ function spawnEconomy(
   player: Player,
   enabled: boolean,
   reservePercent: number,
-  options: { buildCities?: boolean; buildFactories?: boolean } = {},
+  options: {
+    buildCities?: boolean;
+    buildFactories?: boolean;
+    priority?: "balanced" | "city" | "factory";
+    cityTarget?: number;
+    factoryTarget?: number;
+  } = {},
 ): void {
   const exec = new EconomyDelegationExecution(
     player,
@@ -274,5 +280,133 @@ describe("DelegationStatus (engine decision trace)", () => {
     const post = last.items.find((i) => i.unit === UnitType.DefensePost)!;
     expect(["noNeed", "budget"]).toContain(post.result);
     expect(last.ownReserve).toBe(5_000_000);
+  });
+});
+
+/**
+ * 개선 14: build direction (priority) and per-structure target counts.
+ */
+describe("EconomyDelegation direction and targets", () => {
+  test("intent schema parses priority and targets, rejects bad values", () => {
+    expect(
+      SetEconomyDelegationIntentSchema.safeParse({
+        type: "set_economy_delegation",
+        enabled: true,
+        reservePercent: 50,
+        priority: "city",
+        cityTarget: 3,
+        factoryTarget: 2,
+      }).success,
+    ).toBe(true);
+    // unknown priority is rejected
+    expect(
+      SetEconomyDelegationIntentSchema.safeParse({
+        type: "set_economy_delegation",
+        enabled: true,
+        reservePercent: 50,
+        priority: "ports",
+      }).success,
+    ).toBe(false);
+    // targets above the shared cap are rejected
+    expect(
+      SetEconomyDelegationIntentSchema.safeParse({
+        type: "set_economy_delegation",
+        enabled: true,
+        reservePercent: 50,
+        cityTarget: 21,
+      }).success,
+    ).toBe(false);
+  });
+
+  test("city target stops cities at the count, factories continue", async () => {
+    const { game, player } = await setupDelegation();
+    spawnEconomy(game, player, true, 0, { cityTarget: 1 });
+    const { notes } = tickCollecting(game, MAX_TICKS, (n) => n.length >= 4);
+    const cityNotes = notes.filter((n) => n.unit === UnitType.City);
+    expect(cityNotes.length).toBe(1);
+    expect(notes.some((n) => n.unit === UnitType.Factory)).toBe(true);
+  });
+
+  test("destroying a targeted structure makes the delegate rebuild it", async () => {
+    const { game, player } = await setupDelegation();
+    spawnEconomy(game, player, true, 0, {
+      buildFactories: false,
+      cityTarget: 1,
+    });
+    const first = tickCollecting(game, MAX_TICKS, (n) => n.length >= 1);
+    expect(first.notes.length).toBe(1);
+    // Target met: no further cities while the first one stands.
+    const quiet = tickCollecting(game, 200, (n) => n.length >= 1);
+    expect(quiet.notes.length).toBe(0);
+    // Lose the city: the owned count drops below the target, so the
+    // delegate builds a replacement without any new intent. (Destruction
+    // stands in for an enemy razing it; the delegate only sees the count.)
+    let city = player.units(UnitType.City)[0];
+    for (let i = 0; i < 200 && city === undefined; i++) {
+      game.executeNextTick();
+      city = player.units(UnitType.City)[0];
+    }
+    expect(city).toBeDefined();
+    city!.delete(false);
+    expect(player.unitsOwned(UnitType.City)).toBe(0);
+    const rebuilt = tickCollecting(game, MAX_TICKS, (n) => n.length >= 1);
+    expect(rebuilt.notes.length).toBe(1);
+    expect(rebuilt.notes[0].unit).toBe(UnitType.City);
+  });
+
+  test("priority picks the first build when several kinds are due", async () => {
+    // One city already standing, zero factories: balanced prefers the
+    // factory (ratio unmet), city-first prefers another city.
+    for (const [priority, expected] of [
+      ["balanced", UnitType.Factory],
+      ["city", UnitType.City],
+      ["factory", UnitType.Factory],
+    ] as const) {
+      const { game, player } = await setupDelegation();
+      spawnEconomy(game, player, true, 0, { priority });
+      const first = tickCollecting(game, MAX_TICKS, (n) => n.length >= 1);
+      expect(first.notes[0].unit).toBe(UnitType.City); // factory needs a city
+      const second = tickCollecting(game, MAX_TICKS, (n) => n.length >= 1);
+      expect(second.notes[0].unit).toBe(expected);
+    }
+  });
+
+  test("status reports targetMet with owned/target and a progress line", async () => {
+    const { game, player } = await setupDelegation();
+    spawnEconomy(game, player, true, 0, {
+      buildFactories: false,
+      cityTarget: 1,
+    });
+    let sawBuilt = false;
+    let met: DelegationStatusUpdate | null = null;
+    for (let i = 0; i < MAX_TICKS && met === null; i++) {
+      const updates = game.executeNextTick();
+      for (const n of (updates[GameUpdateType.DelegationNote] ??
+        []) as DelegationNoteUpdate[]) {
+        if (n.unit === UnitType.City) sawBuilt = true;
+      }
+      if (!sawBuilt) continue;
+      for (const st of (updates[GameUpdateType.DelegationStatus] ??
+        []) as DelegationStatusUpdate[]) {
+        if (st.kind !== "economy") continue;
+        const city = st.items.find((it) => it.unit === UnitType.City);
+        if (city?.result === "targetMet") met = st;
+      }
+    }
+    expect(met).not.toBeNull();
+    const city = met!.items.find((it) => it.unit === UnitType.City)!;
+    expect(city.have).toBe(1);
+    expect(city.need).toBe(1);
+    const progress = met!.progress!;
+    expect(progress.find((pr) => pr.unit === UnitType.City)).toEqual({
+      unit: UnitType.City,
+      owned: 1,
+      target: 1,
+    });
+    expect(progress.find((pr) => pr.unit === UnitType.Factory)).toEqual({
+      unit: UnitType.Factory,
+      owned: 0,
+      target: 0,
+    });
   });
 });

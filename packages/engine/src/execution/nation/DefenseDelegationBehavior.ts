@@ -159,6 +159,8 @@ export class DefenseDelegationBehavior {
   private static readonly RANK: Record<DelegationResult, number> = {
     built: 7,
     budget: 6,
+    // Economy-only result; the rank keeps the record type total.
+    targetMet: 0,
     noSpot: 5,
     noNeed: 4,
     ruleOff: 3,

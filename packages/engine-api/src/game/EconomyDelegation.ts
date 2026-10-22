@@ -19,3 +19,22 @@ export const ECONOMY_SAMPLE_ATTEMPTS = 25;
 
 /** A factory scores a bonus when a city is within this Manhattan distance. */
 export const FACTORY_CITY_BONUS_DIST = 40;
+
+/**
+ * 개선 14: which structure the economy delegate builds first when several
+ * are due. "balanced" keeps the original behavior (factories until the
+ * 3-per-4-cities ratio is met, cities otherwise); "city" and "factory"
+ * always try that kind first and fall back to the other when it is capped
+ * or blocked.
+ */
+export const ECONOMY_PRIORITIES = ["balanced", "city", "factory"] as const;
+export type EconomyPriority = (typeof ECONOMY_PRIORITIES)[number];
+
+/**
+ * Upper bound for the per-structure build targets the player can set
+ * (개선 14). 0 means unlimited: the delegate keeps building that kind as
+ * long as the other rules allow. Once a positive target is reached the
+ * delegate stops building that kind; when destruction drops the owned
+ * count below the target it resumes automatically.
+ */
+export const ECONOMY_MAX_TARGET = 20;

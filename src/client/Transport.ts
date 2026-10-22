@@ -58,6 +58,7 @@ import {
   SendUpdateGameConfigIntentEvent,
 } from "./LobbyEvents";
 import { DefensePriority } from "@openfront/engine-api/game/DefenseDelegation";
+import { EconomyPriority } from "@openfront/engine-api/game/EconomyDelegation";
 import { LocalServer } from "./LocalServer";
 import { describeSocketClose } from "./SocketClose";
 import { homeHref, translateText } from "./Utils";
@@ -87,6 +88,9 @@ export class SetEconomyDelegationEvent implements GameEvent {
     public readonly reservePercent: number,
     public readonly buildCities?: boolean,
     public readonly buildFactories?: boolean,
+    public readonly priority?: EconomyPriority,
+    public readonly cityTarget?: number,
+    public readonly factoryTarget?: number,
   ) {}
 }
 
@@ -952,6 +956,9 @@ export class Transport {
       reservePercent: event.reservePercent,
       buildCities: event.buildCities,
       buildFactories: event.buildFactories,
+      priority: event.priority,
+      cityTarget: event.cityTarget,
+      factoryTarget: event.factoryTarget,
     });
   }
 

@@ -1,6 +1,7 @@
 import {
   ECONOMY_MIN_TILES_FOR_CITY,
   ECONOMY_SAMPLE_ATTEMPTS,
+  EconomyPriority,
   FACTORY_CITY_BONUS_DIST,
   FACTORY_RATIO_PER_CITY_DEN,
   FACTORY_RATIO_PER_CITY_NUM,
@@ -40,6 +41,15 @@ export interface EconomyDelegationSettings {
    * defense budget. Computed by the execution each attempt, not by intent.
    */
   defenseFloor: Gold;
+  /**
+   * 개선 14: which kind is attempted first when several are due.
+   * "balanced" keeps the original ratio-based order.
+   */
+  priority: EconomyPriority;
+  /** 개선 14: stop building cities at this count (0 = unlimited). */
+  cityTarget: number;
+  /** 개선 14: stop building factories at this count (0 = unlimited). */
+  factoryTarget: number;
 }
 
 /**
@@ -69,24 +79,13 @@ export class EconomyDelegationBehavior {
     const cities = this.player.unitsOwned(UnitType.City);
     const factories = this.player.unitsOwned(UnitType.Factory);
     const tiles = this.player.numTilesOwned();
-    const factoryDue =
-      settings.buildFactories &&
-      !config.isUnitDisabled(UnitType.Factory) &&
-      cities > 0 &&
-      factories * FACTORY_RATIO_PER_CITY_DEN <
-        cities * FACTORY_RATIO_PER_CITY_NUM;
-    const cityDue =
-      settings.buildCities &&
-      !config.isUnitDisabled(UnitType.City) &&
-      tiles >= ECONOMY_MIN_TILES_FOR_CITY;
+    // 개선 14: a positive target caps the owned count; destruction
+    // below the target makes the kind due again automatically.
+    const cityTargetMet =
+      settings.cityTarget > 0 && cities >= settings.cityTarget;
+    const factoryTargetMet =
+      settings.factoryTarget > 0 && factories >= settings.factoryTarget;
     // Static reasons a kind is not even attempted (decision trace).
-    const factoryStatic: DelegationStatusItem | null = !settings.buildFactories
-      ? this.item(UnitType.Factory, "userOff")
-      : config.isUnitDisabled(UnitType.Factory)
-        ? this.item(UnitType.Factory, "ruleOff")
-        : cities === 0
-          ? this.item(UnitType.Factory, "needCity")
-          : null;
     const cityStatic: DelegationStatusItem | null = !settings.buildCities
       ? this.item(UnitType.City, "userOff")
       : config.isUnitDisabled(UnitType.City)
@@ -97,24 +96,54 @@ export class EconomyDelegationBehavior {
               have: tiles,
               need: ECONOMY_MIN_TILES_FOR_CITY,
             }
-          : null;
-    if (factoryDue) {
-      const built = this.tryPlace(settings, UnitType.Factory);
-      if (built !== null) return built;
+          : cityTargetMet
+            ? {
+                ...this.item(UnitType.City, "targetMet"),
+                have: cities,
+                need: settings.cityTarget,
+              }
+            : null;
+    const factoryStatic: DelegationStatusItem | null = !settings.buildFactories
+      ? this.item(UnitType.Factory, "userOff")
+      : config.isUnitDisabled(UnitType.Factory)
+        ? this.item(UnitType.Factory, "ruleOff")
+        : cities === 0
+          ? this.item(UnitType.Factory, "needCity")
+          : factoryTargetMet
+            ? {
+                ...this.item(UnitType.Factory, "targetMet"),
+                have: factories,
+                need: settings.factoryTarget,
+              }
+            : null;
+    const cityDue = cityStatic === null;
+    const factoryDue = factoryStatic === null;
+    // Attempt order. Balanced keeps the original behavior: factories while
+    // the 0.75 factories-per-city ratio is unmet, cities otherwise, with
+    // the other kind as fallback when the first cannot be placed.
+    let order: UnitType[];
+    if (settings.priority === "city") {
+      order = [UnitType.City, UnitType.Factory];
+    } else if (settings.priority === "factory") {
+      order = [UnitType.Factory, UnitType.City];
+    } else {
+      const ratioUnmet =
+        factories * FACTORY_RATIO_PER_CITY_DEN <
+        cities * FACTORY_RATIO_PER_CITY_NUM;
+      order = ratioUnmet
+        ? [UnitType.Factory, UnitType.City]
+        : [UnitType.City, UnitType.Factory];
     }
-    if (cityDue) {
-      const built = this.tryPlace(settings, UnitType.City);
-      if (built !== null) return built;
-    }
-    // Nothing else due: still grow factories when the player enabled them.
-    if (
-      settings.buildFactories &&
-      !factoryDue &&
-      cities > 0 &&
-      !config.isUnitDisabled(UnitType.Factory)
-    ) {
-      const built = this.tryPlace(settings, UnitType.Factory);
-      if (built !== null) return built;
+    for (const kind of order) {
+      const due = kind === UnitType.City ? cityDue : factoryDue;
+      if (!due) continue;
+      const built = this.tryPlace(settings, kind);
+      if (built !== null) {
+        const otherStatic =
+          kind === UnitType.City ? factoryStatic : cityStatic;
+        if (otherStatic !== null) this.items.push(otherStatic);
+        return built;
+      }
     }
     if (factoryStatic !== null) this.items.push(factoryStatic);
     if (cityStatic !== null) this.items.push(cityStatic);

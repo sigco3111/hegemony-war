@@ -58,7 +58,16 @@
     "zone_pick_banner": "보호할 지역을 지도에서 눌러주세요",
     "zone_pick_cancel": "취소",
     "zone_set": "지도에 원으로 표시됨",
-    "zone_unset": "전체 영토"
+    "zone_unset": "전체 영토",
+    "econ_priority": "건설 방향",
+    "econ_priority_balanced": "균형",
+    "econ_priority_city": "도시 우선",
+    "econ_priority_factory": "공장 우선",
+    "econ_targets": "목표 수량",
+    "econ_targets_hint": "목표를 채우면 그 시설은 멈추고, 파괴돼 부족해지면 다시 짓습니다",
+    "econ_target_unlimited": "무제한",
+    "dec_target_met": "{unit}: 목표 {need}개 달성 (현재 {have}개)",
+    "dec_progress": "목표 진행: {parts}"
   },
   "lang": {
     "en": "Korean",

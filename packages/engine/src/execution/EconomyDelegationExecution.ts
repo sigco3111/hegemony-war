@@ -6,7 +6,7 @@ import {
 import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
 import { simpleHash } from "@openfront/engine-lib/Util";
 import { z } from "zod";
-import { Gold } from "@openfront/engine-api/game/GameTypes";
+import { Gold, UnitType } from "@openfront/engine-api/game/GameTypes";
 import {
   DelegationStatusItem,
   GameUpdateType,
@@ -19,6 +19,7 @@ import type {
   SnapshotReader,
   SnapshotWriter,
 } from "../snapshot/SnapshotContext";
+import { EconomyPriority } from "@openfront/engine-api/game/EconomyDelegation";
 import {
   EconomyDelegationBehavior,
   EconomyDelegationSettings,
@@ -57,6 +58,10 @@ export class EconomyDelegationExecution implements Execution {
 
   private buildCities: boolean;
   private buildFactories: boolean;
+  /** 개선 14: build order + per-structure target counts. */
+  private priority: EconomyPriority;
+  private cityTarget: number;
+  private factoryTarget: number;
 
   constructor(
     public player: Player,
@@ -65,10 +70,16 @@ export class EconomyDelegationExecution implements Execution {
     options: {
       buildCities?: boolean;
       buildFactories?: boolean;
+      priority?: EconomyPriority;
+      cityTarget?: number;
+      factoryTarget?: number;
     } = {},
   ) {
     this.buildCities = options.buildCities ?? true;
     this.buildFactories = options.buildFactories ?? true;
+    this.priority = options.priority ?? "balanced";
+    this.cityTarget = options.cityTarget ?? 0;
+    this.factoryTarget = options.factoryTarget ?? 0;
   }
 
   isActive(): boolean {
@@ -142,6 +153,18 @@ export class EconomyDelegationExecution implements Execution {
       otherReserve: Number(defense),
       cooldown: Math.max(0, BUILD_GAP_TICKS - (ticks - this.lastBuildTick)),
       items: this.lastItems,
+      progress: [
+        {
+          unit: UnitType.City,
+          owned: this.player.unitsOwned(UnitType.City),
+          target: this.cityTarget,
+        },
+        {
+          unit: UnitType.Factory,
+          owned: this.player.unitsOwned(UnitType.Factory),
+          target: this.factoryTarget,
+        },
+      ],
     });
   }
 
@@ -163,6 +186,9 @@ export class EconomyDelegationExecution implements Execution {
       buildCities: this.buildCities,
       buildFactories: this.buildFactories,
       defenseFloor: this.behavior ? defense : 0n,
+      priority: this.priority,
+      cityTarget: this.cityTarget,
+      factoryTarget: this.factoryTarget,
     };
     if (this.behavior?.tryBuild(settings)) {
       this.lastBuildTick = ticks;
@@ -187,6 +213,9 @@ export class EconomyDelegationExecution implements Execution {
       random: w.random(this.random!),
       buildCities: this.buildCities,
       buildFactories: this.buildFactories,
+      priority: this.priority,
+      cityTarget: this.cityTarget,
+      factoryTarget: this.factoryTarget,
     });
   }
 
@@ -198,6 +227,9 @@ export class EconomyDelegationExecution implements Execution {
     this.lastBuildTick = s.lastBuildTick;
     this.buildCities = s.buildCities ?? true;
     this.buildFactories = s.buildFactories ?? true;
+    this.priority = s.priority ?? "balanced";
+    this.cityTarget = s.cityTarget ?? 0;
+    this.factoryTarget = s.factoryTarget ?? 0;
     this.random = r.random(s.random);
     this.behavior = new EconomyDelegationBehavior(
       this.random,
@@ -219,6 +251,9 @@ const EconomyDelegationStateSchema = z.object({
   random: zRandom(),
   buildCities: z.boolean().optional(),
   buildFactories: z.boolean().optional(),
+  priority: z.enum(["balanced", "city", "factory"]).optional(),
+  cityTarget: zInt().optional(),
+  factoryTarget: zInt().optional(),
 });
 type EconomyDelegationState = z.infer<typeof EconomyDelegationStateSchema>;
 

@@ -166,6 +166,9 @@ export class Executor {
           {
             buildCities: intent.buildCities,
             buildFactories: intent.buildFactories,
+            priority: intent.priority,
+            cityTarget: intent.cityTarget,
+            factoryTarget: intent.factoryTarget,
           },
         );
       default:

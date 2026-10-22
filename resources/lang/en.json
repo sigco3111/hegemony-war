@@ -751,7 +751,16 @@
     "zone_pick_banner": "Tap the area you want protected",
     "zone_pick_cancel": "Cancel",
     "zone_set": "Shown as a circle on the map",
-    "zone_unset": "Whole territory"
+    "zone_unset": "Whole territory",
+    "econ_priority": "Build direction",
+    "econ_priority_balanced": "Balanced",
+    "econ_priority_city": "Cities first",
+    "econ_priority_factory": "Factories first",
+    "econ_targets": "Target counts",
+    "econ_targets_hint": "Building stops at the target and resumes when losses drop below it",
+    "econ_target_unlimited": "No limit",
+    "dec_target_met": "{unit}: target of {need} reached ({have} owned)",
+    "dec_progress": "Target progress: {parts}"
   },
   "desktop_gate": {
     "back_to_game": "Back to Game",

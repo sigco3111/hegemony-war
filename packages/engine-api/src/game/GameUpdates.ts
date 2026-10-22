@@ -380,7 +380,8 @@ export type DelegationResult =
   | "userOff" // the player switched this structure off
   | "ruleOff" // disabled by the game rules
   | "needTiles" // economy: not enough territory for a first city
-  | "needCity"; // economy: a factory needs at least one city first
+  | "needCity" // economy: a factory needs at least one city first
+  | "targetMet"; // economy: the player-set target count is already reached
 
 export interface DelegationStatusItem {
   unit: UnitType;
@@ -406,6 +407,12 @@ export interface DelegationStatusUpdate {
   /** Ticks left of the post-build wait (0 = attempting every tick). */
   cooldown: number;
   items: DelegationStatusItem[];
+  /**
+   * 개선 14 (economy only): owned count vs the player-set target per
+   * structure kind, so the panel can show goal progress. target 0 means
+   * unlimited. Absent on defense updates and older replays.
+   */
+  progress?: { unit: UnitType; owned: number; target: number }[];
 }
 
 export interface TargetPlayerUpdate {
