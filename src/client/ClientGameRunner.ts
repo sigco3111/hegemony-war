@@ -1055,7 +1055,7 @@ export class ClientGameRunner {
       this.trailingTickTimer = setTimeout(() => {
         this.trailingTickTimer = undefined;
         this.renderer.tick();
-      }, 600);
+      }, 1100);
       if (gu.tickExecutionDuration !== undefined) {
         this.metrics?.recordTickExecution(gu.tickExecutionDuration);
       }
