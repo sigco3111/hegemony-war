@@ -260,7 +260,7 @@ export class DiplomacyMapOverlay extends LitElement implements Controller {
         ctx.lineWidth = 3;
         ctx.strokeStyle = RING_ATTACKER + "0.95)";
         ctx.stroke();
-        this.emoji(ctx, "⚔️", s.x, s.y - r - 10);
+        this.emoji(ctx, "⚔️", s.x, s.y);
         this.label(ctx, renderTroops(m.troops), s.x, s.y + r + 14, "#fca5a5");
       } else if (m.kind === "hegemon") {
         const r = 16 + 4 * pulse;
@@ -271,19 +271,19 @@ export class DiplomacyMapOverlay extends LitElement implements Controller {
         ctx.strokeStyle = RING_HEGEMON + "0.95)";
         ctx.strokeRect(-r / 1.4, -r / 1.4, r * 1.4, r * 1.4);
         ctx.restore();
-        this.emoji(ctx, "⚠️", s.x, s.y - r - 10);
+        this.emoji(ctx, "⚠️", s.x, s.y);
       } else {
         ctx.beginPath();
-        ctx.arc(s.x, s.y, 13, 0, Math.PI * 2);
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = RING_ALLY + "0.9)";
+        ctx.arc(s.x, s.y, 16, 0, Math.PI * 2);
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = RING_ALLY + "0.95)";
         ctx.stroke();
         ctx.beginPath();
-        ctx.arc(s.x, s.y, 17, 0, Math.PI * 2);
+        ctx.arc(s.x, s.y, 21, 0, Math.PI * 2);
         ctx.lineWidth = 1.5;
-        ctx.strokeStyle = RING_ALLY + "0.4)";
+        ctx.strokeStyle = RING_ALLY + "0.45)";
         ctx.stroke();
-        this.emoji(ctx, "🤝", s.x, s.y - 23 - 10);
+        this.emoji(ctx, "🤝", s.x, s.y);
       }
     }
   }
@@ -298,7 +298,7 @@ export class DiplomacyMapOverlay extends LitElement implements Controller {
   }
 
   private emoji(ctx: CanvasRenderingContext2D, ch: string, x: number, y: number) {
-    ctx.font = "14px sans-serif";
+    ctx.font = "17px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(ch, x, y);
