@@ -923,6 +923,7 @@ async function createClientGame(
 }
 
 export class ClientGameRunner {
+  private trailingTickTimer: ReturnType<typeof setTimeout> | undefined;
   private myPlayer: PlayerView | null = null;
   private isActive = false;
 
@@ -1045,6 +1046,16 @@ export class ClientGameRunner {
       this.gameView.update(gu);
       this.webglBuilder?.update(this.gameView);
       this.renderer.tick();
+      // 레이어 tick은 간격 제한이 있어, 따라잡기·일시정지 직전의 마지막 업데이트가
+      // 제한에 걸리면 시계·순위표가 몇 초 전 값으로 멈춘다. 새 업데이트가 한동안
+      // 없으면(정지) 마지막 상태로 한 번 더 그려 맞춘다.
+      if (this.trailingTickTimer !== undefined) {
+        clearTimeout(this.trailingTickTimer);
+      }
+      this.trailingTickTimer = setTimeout(() => {
+        this.trailingTickTimer = undefined;
+        this.renderer.tick();
+      }, 600);
       if (gu.tickExecutionDuration !== undefined) {
         this.metrics?.recordTickExecution(gu.tickExecutionDuration);
       }

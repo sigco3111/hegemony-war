@@ -73,20 +73,8 @@ export class GameLeftSidebar extends LitElement implements Controller {
     return this;
   }
 
-  private lastStatsRefreshMs = 0;
-
   init() {
     this.isVisible = true;
-    // 렌더러 tick은 게임 업데이트 때만 돈다. 이어하기 직후 일시정지 상태에서는
-    // 마지막 따라잡기 틱이 갱신 간격에 막혀 순위표가 낡은 채로 남으므로,
-    // 일정 시간 갱신이 없으면 타이머로 한 번 더 갱신한다.
-    setInterval(() => {
-      if (this.game === null) return;
-      if (performance.now() - this.lastStatsRefreshMs < 1500) return;
-      this.lastStatsRefreshMs = performance.now();
-      this.playerStats?.refresh();
-      this.teamStats?.refresh();
-    }, 1000);
     this.eventBus?.on(SpawnBarVisibleEvent, (e) => {
       this.spawnBarVisible = e.visible;
     });
@@ -136,7 +124,6 @@ export class GameLeftSidebar extends LitElement implements Controller {
       this.isPlayerTeamLabelVisible = false;
     }
 
-    this.lastStatsRefreshMs = performance.now();
     this.playerStats?.refresh();
     this.teamStats?.refresh();
   }
