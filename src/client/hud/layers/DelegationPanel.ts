@@ -6,6 +6,8 @@ import {
 import { GameType, UnitType } from "@openfront/engine-api/game/GameTypes";
 import {
   DelegationNoteUpdate,
+  DelegationStatusItem,
+  DelegationStatusUpdate,
   GameUpdateType,
 } from "@openfront/engine-api/game/GameUpdates";
 import { EventBus } from "@openfront/shared/EventBus";
@@ -35,6 +37,15 @@ interface DelegationAction {
   unit: UnitType;
   cost: number;
 }
+
+/** Engine decision (개선 13) with the engine tick it was received on. */
+interface DecisionState {
+  tick: number;
+  status: DelegationStatusUpdate;
+}
+
+/** A decision older than this many engine ticks is treated as stale. */
+const DECISION_STALE_TICKS = 60;
 
 const RESERVE_OPTIONS = [25, 50, 75];
 const MAX_HISTORY = 50;
@@ -74,6 +85,9 @@ export class DelegationPanel extends LitElement implements Controller {
   @state() private anchorGold: bigint | null = null;
   /** Why the delegate is idle right now; null while disabled. */
   @state() private status: "hold" | "threat" | "watch" | null = null;
+  /** 개선 13: the engine's own last decision per delegation. */
+  @state() private defDecision: DecisionState | null = null;
+  @state() private econDecision: DecisionState | null = null;
   /** Last known defense-post cost (escalates per post owned). */
   private postCost: bigint | null = null;
   private costRefreshTick = -1000;
@@ -199,6 +213,13 @@ export class DelegationPanel extends LitElement implements Controller {
       const updates = this.game.updatesSinceLastTick();
       const notes = (updates?.[GameUpdateType.DelegationNote] ??
         []) as DelegationNoteUpdate[];
+      const sts = (updates?.[GameUpdateType.DelegationStatus] ??
+        []) as DelegationStatusUpdate[];
+      for (const st of sts) {
+        const d = { tick: t, status: st };
+        if (st.kind === "defense") this.defDecision = d;
+        else this.econDecision = d;
+      }
       if (notes.length > 0) {
         const fresh: DelegationAction[] = notes.map((n) => ({
           tick: t,
@@ -313,6 +334,7 @@ export class DelegationPanel extends LitElement implements Controller {
     }
     if (!on) {
       this.anchorGold = null;
+      this.defDecision = null;
     }
     this.enabled = on;
     this.emitSettings();
@@ -348,6 +370,7 @@ export class DelegationPanel extends LitElement implements Controller {
     }
     if (!on) {
       this.econAnchorGold = null;
+      this.econDecision = null;
     }
     this.econEnabled = on;
     this.emitEconSettings();
@@ -394,6 +417,120 @@ export class DelegationPanel extends LitElement implements Controller {
       default:
         return translateText("delegation_panel.built_post");
     }
+  }
+
+  private hasFreshDecision(d: DecisionState | null): boolean {
+    if (d === null) return false;
+    const now = this.game?.ticks() ?? 0;
+    return now >= d.tick && now - d.tick <= DECISION_STALE_TICKS;
+  }
+
+  private unitName(unit: UnitType): string {
+    switch (unit) {
+      case UnitType.SAMLauncher:
+        return translateText("delegation_panel.struct_sam");
+      case UnitType.City:
+        return translateText("delegation_panel.struct_city");
+      case UnitType.Factory:
+        return translateText("delegation_panel.struct_factory");
+      default:
+        return translateText("delegation_panel.struct_post");
+    }
+  }
+
+  private itemLine(it: DelegationStatusItem): { text: string; warn: boolean } {
+    const unit = this.unitName(it.unit);
+    const n = (v: number) => Math.max(0, Math.round(v)).toLocaleString();
+    const k = (key: string, p: Record<string, string | number> = {}) =>
+      translateText(`delegation_panel.${key}`, { unit, ...p });
+    switch (it.result) {
+      case "built":
+        return { text: k("dec_built", { cost: n(it.cost) }), warn: false };
+      case "budget":
+        return {
+          text: k("dec_budget", { cost: n(it.cost), short: n(it.shortfall) }),
+          warn: true,
+        };
+      case "noNeed":
+        return {
+          text:
+            it.unit === UnitType.DefensePost
+              ? k("dec_no_need_post")
+              : it.unit === UnitType.SAMLauncher
+                ? k("dec_no_need_sam")
+                : k("dec_no_need"),
+          warn: false,
+        };
+      case "noSpot":
+        return { text: k("dec_no_spot"), warn: true };
+      case "userOff":
+        return { text: k("dec_user_off"), warn: false };
+      case "ruleOff":
+        return { text: k("dec_rule_off"), warn: false };
+      case "needTiles":
+        return {
+          text: k("dec_need_tiles", { have: n(it.have), need: n(it.need) }),
+          warn: false,
+        };
+      default:
+        return { text: k("dec_need_city"), warn: false };
+    }
+  }
+
+  /**
+   * 개선 13: renders the engine's actual last decision (numbers and reasons
+   * come from the delegation itself, not from client-side gold guesses).
+   */
+  private renderDecision(
+    d: DecisionState | null,
+    economy: boolean,
+  ): TemplateResult | typeof nothing {
+    if (d === null) return nothing;
+    const now = this.game?.ticks() ?? 0;
+    if (now < d.tick || now - d.tick > DECISION_STALE_TICKS) return nothing;
+    const st = d.status;
+    const n = (v: number) => Math.max(0, Math.round(v)).toLocaleString();
+    const reserve = st.ownReserve + st.otherReserve;
+    const free = st.gold - reserve;
+    const head = economy
+      ? translateText("delegation_panel.dec_gold_econ", {
+          gold: n(st.gold),
+          reserve: n(reserve),
+          own: n(st.ownReserve),
+          other: n(st.otherReserve),
+          free: n(free),
+        })
+      : translateText("delegation_panel.dec_gold", {
+          gold: n(st.gold),
+          reserve: n(reserve),
+          free: n(free),
+        });
+    return html`
+      <div
+        class="mt-2 rounded bg-white/5 p-2 text-xs"
+        data-testid="${economy ? "econ" : "def"}-decision"
+      >
+        <div class="font-bold text-white/70 mb-1">
+          ${translateText("delegation_panel.dec_title")}
+        </div>
+        <div class="text-white/80 tabular-nums">${head}</div>
+        ${st.items.map((it) => {
+          const line = this.itemLine(it);
+          return html`<div
+            class="mt-1 ${line.warn ? "text-amber-300/90" : "text-white/55"}"
+          >
+            ${line.text}
+          </div>`;
+        })}
+        ${st.cooldown > 0
+          ? html`<div class="mt-1 text-white/40">
+              ${translateText("delegation_panel.dec_cooldown", {
+                sec: Math.ceil(st.cooldown / 10),
+              })}
+            </div>`
+          : nothing}
+      </div>
+    `;
   }
 
   private renderHistory(): TemplateResult {
@@ -500,7 +637,10 @@ export class DelegationPanel extends LitElement implements Controller {
                   ? translateText("delegation_panel.on")
                   : translateText("delegation_panel.off")}
               </button>
-              ${this.enabled && this.status !== null
+              ${this.enabled ? this.renderDecision(this.defDecision, false) : nothing}
+              ${this.enabled &&
+              this.status !== null &&
+              !this.hasFreshDecision(this.defDecision)
                 ? html`<p
                     class="mt-2 text-xs ${this.status === "hold"
                       ? "text-amber-300/90"
@@ -649,7 +789,12 @@ export class DelegationPanel extends LitElement implements Controller {
                   ? translateText("delegation_panel.on")
                   : translateText("delegation_panel.off")}
               </button>
-              ${this.econEnabled && this.econStatus !== null
+              ${this.econEnabled
+                ? this.renderDecision(this.econDecision, true)
+                : nothing}
+              ${this.econEnabled &&
+              this.econStatus !== null &&
+              !this.hasFreshDecision(this.econDecision)
                 ? html`<p
                     class="mt-2 text-xs ${this.econStatus === "hold"
                       ? "text-amber-300/90"

@@ -5,7 +5,11 @@ import {
   Relation,
   UnitType,
 } from "@openfront/engine-api/game/GameTypes";
-import { GameUpdateType } from "@openfront/engine-api/game/GameUpdates";
+import {
+  DelegationResult,
+  DelegationStatusItem,
+  GameUpdateType,
+} from "@openfront/engine-api/game/GameUpdates";
 import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
 import { Game, Player } from "../../game/Game";
 import { ConstructionExecution } from "../ConstructionExecution";
@@ -115,6 +119,7 @@ export class DefenseDelegationBehavior {
    * player switched off are skipped entirely.
    */
   tryBuild(settings: DefenseDelegationSettings): UnitType | null {
+    this.trace = new Map();
     if (!settings.enabled || !this.player.isAlive()) return null;
     const zone = this.zone(settings);
     const reactive = () => this.tryReactiveDefensePost(settings, zone);
@@ -133,12 +138,58 @@ export class DefenseDelegationBehavior {
           : ["reactive", "proactive", "sam"];
     for (const kind of order) {
       if (kind === "sam" ? !settings.buildSams : !settings.buildPosts) {
+        this.note(
+          kind === "sam" ? UnitType.SAMLauncher : UnitType.DefensePost,
+          "userOff",
+        );
         continue;
       }
       const built = attempts[kind]();
       if (built !== null) return built;
     }
     return null;
+  }
+
+  /**
+   * Decision trace of the last tryBuild, one entry per structure kind. Posts
+   * have two routes (reactive, proactive); the more informative outcome wins
+   * (built > budget > noSpot > noNeed > off).
+   */
+  private trace = new Map<UnitType, DelegationResult>();
+  private static readonly RANK: Record<DelegationResult, number> = {
+    built: 7,
+    budget: 6,
+    noSpot: 5,
+    noNeed: 4,
+    ruleOff: 3,
+    needTiles: 2,
+    needCity: 2,
+    userOff: 1,
+  };
+  private note(unit: UnitType, result: DelegationResult): void {
+    const prev = this.trace.get(unit);
+    if (
+      prev === undefined ||
+      DefenseDelegationBehavior.RANK[result] >
+        DefenseDelegationBehavior.RANK[prev]
+    ) {
+      this.trace.set(unit, result);
+    }
+  }
+
+  /** Items for the status update; shortfall uses the settings' floor. */
+  lastItems(reserve: Gold): DelegationStatusItem[] {
+    const out: DelegationStatusItem[] = [];
+    for (const [unit, result] of this.trace) {
+      const off = result === "userOff" || result === "ruleOff";
+      const cost = off ? 0 : Number(this.cost(unit));
+      const short =
+        result === "budget"
+          ? Number(this.cost(unit) + reserve - this.player.gold())
+          : 0;
+      out.push({ unit, result, cost, shortfall: short, have: 0, need: 0 });
+    }
+    return out;
   }
 
   private cost(type: UnitType): Gold {
@@ -186,17 +237,24 @@ export class DefenseDelegationBehavior {
     zone: DefenseZone | null,
   ): UnitType | null {
     const config = this.game.config();
-    if (config.isUnitDisabled(UnitType.DefensePost)) return null;
-    if (!this.withinBudget(settings, UnitType.DefensePost)) return null;
+    if (config.isUnitDisabled(UnitType.DefensePost)) {
+      this.note(UnitType.DefensePost, "ruleOff");
+      return null;
+    }
 
     const player = this.player;
     const attacks = player.incomingAttacks();
-    if (attacks.length === 0) return null;
     const ourTroops = player.troops();
-    if (ourTroops <= 0) return null;
+    if (attacks.length === 0 || ourTroops <= 0) {
+      this.note(UnitType.DefensePost, "noNeed");
+      return null;
+    }
     const incomingTroops = attacks.reduce((sum, a) => sum + a.troops(), 0);
     const ratio = incomingTroops / ourTroops;
-    if (ratio < UNDER_ATTACK_THREAT_RATIO) return null;
+    if (ratio < UNDER_ATTACK_THREAT_RATIO) {
+      this.note(UnitType.DefensePost, "noNeed");
+      return null;
+    }
 
     const allowed = Math.ceil(ratio / DEFENSE_POST_RATIO_PER_POST);
     const range = config.defensePostRange();
@@ -218,6 +276,11 @@ export class DefenseDelegationBehavior {
         zone ?? undefined,
       ) >= allowed
     ) {
+      this.note(UnitType.DefensePost, "noNeed");
+      return null;
+    }
+    if (!this.withinBudget(settings, UnitType.DefensePost)) {
+      this.note(UnitType.DefensePost, "budget");
       return null;
     }
     const tile = findDefensePostTile(
@@ -229,7 +292,11 @@ export class DefenseDelegationBehavior {
       maxDist,
       zone ?? undefined,
     );
-    if (tile === null) return null;
+    if (tile === null) {
+      this.note(UnitType.DefensePost, "noSpot");
+      return null;
+    }
+    this.note(UnitType.DefensePost, "built");
     return this.build(settings, UnitType.DefensePost, tile);
   }
 
@@ -243,16 +310,19 @@ export class DefenseDelegationBehavior {
     zone: DefenseZone | null,
   ): UnitType | null {
     const config = this.game.config();
-    if (config.isUnitDisabled(UnitType.DefensePost)) return null;
-    if (!this.withinBudget(settings, UnitType.DefensePost)) return null;
+    if (config.isUnitDisabled(UnitType.DefensePost)) {
+      this.note(UnitType.DefensePost, "ruleOff");
+      return null;
+    }
 
     const player = this.player;
     const cityCount = player.units(UnitType.City).length;
-    if (cityCount < PROACTIVE_DEFENSE_POST_MIN_CITIES) return null;
     if (
+      cityCount < PROACTIVE_DEFENSE_POST_MIN_CITIES ||
       player.units(UnitType.DefensePost).length >=
-      cityCount * PROACTIVE_DEFENSE_POSTS_PER_CITY
+        cityCount * PROACTIVE_DEFENSE_POSTS_PER_CITY
     ) {
+      this.note(UnitType.DefensePost, "noNeed");
       return null;
     }
 
@@ -268,7 +338,10 @@ export class DefenseDelegationBehavior {
         threats.add(neighbor);
       }
     }
-    if (threats.size === 0) return null;
+    if (threats.size === 0) {
+      this.note(UnitType.DefensePost, "noNeed");
+      return null;
+    }
 
     const range = config.defensePostRange();
     const frontTiles = borderTilesFacing(this.game, player, threats);
@@ -282,6 +355,11 @@ export class DefenseDelegationBehavior {
         zone ?? undefined,
       ) >= threats.size
     ) {
+      this.note(UnitType.DefensePost, "noNeed");
+      return null;
+    }
+    if (!this.withinBudget(settings, UnitType.DefensePost)) {
+      this.note(UnitType.DefensePost, "budget");
       return null;
     }
     const tile = findDefensePostTile(
@@ -293,7 +371,11 @@ export class DefenseDelegationBehavior {
       range * PROACTIVE_DEFENSE_POST_MAX_DIST,
       zone ?? undefined,
     );
-    if (tile === null) return null;
+    if (tile === null) {
+      this.note(UnitType.DefensePost, "noSpot");
+      return null;
+    }
+    this.note(UnitType.DefensePost, "built");
     return this.build(settings, UnitType.DefensePost, tile);
   }
 
@@ -307,14 +389,19 @@ export class DefenseDelegationBehavior {
     zone: DefenseZone | null,
   ): UnitType | null {
     const config = this.game.config();
-    if (config.isUnitDisabled(UnitType.SAMLauncher)) return null;
+    if (config.isUnitDisabled(UnitType.SAMLauncher)) {
+      this.note(UnitType.SAMLauncher, "ruleOff");
+      return null;
+    }
     const nukesLive = [
       UnitType.AtomBomb,
       UnitType.HydrogenBomb,
       UnitType.MIRV,
     ].some((t) => !config.isUnitDisabled(t));
-    if (!nukesLive) return null;
-    if (!this.withinBudget(settings, UnitType.SAMLauncher)) return null;
+    if (!nukesLive) {
+      this.note(UnitType.SAMLauncher, "noNeed");
+      return null;
+    }
 
     const player = this.player;
     const zoneSquared = zone === null ? 0 : zone.radius ** 2;
@@ -327,12 +414,18 @@ export class DefenseDelegationBehavior {
           this.game.euclideanDistSquared(u.tile(), zone.center) <=
             zoneSquared,
       );
-    if (structures.length === 0) return null;
+    if (structures.length === 0) {
+      this.note(UnitType.SAMLauncher, "noNeed");
+      return null;
+    }
 
     const cityCount = player.units(UnitType.City).length;
     const cap = Math.max(1, Math.ceil(Math.max(cityCount, 1) * SAM_PER_CITY));
     const sams = player.units(UnitType.SAMLauncher);
-    if (sams.length >= cap) return null;
+    if (sams.length >= cap) {
+      this.note(UnitType.SAMLauncher, "noNeed");
+      return null;
+    }
 
     const range = config.samRange(1);
     const rangeSquared = range ** 2;
@@ -344,7 +437,14 @@ export class DefenseDelegationBehavior {
             rangeSquared,
         ),
     );
-    if (uncovered.length === 0) return null;
+    if (uncovered.length === 0) {
+      this.note(UnitType.SAMLauncher, "noNeed");
+      return null;
+    }
+    if (!this.withinBudget(settings, UnitType.SAMLauncher)) {
+      this.note(UnitType.SAMLauncher, "budget");
+      return null;
+    }
 
     // Sample around the uncovered structures; keep the tile that puts the
     // most still-uncovered structures in range.
@@ -378,7 +478,11 @@ export class DefenseDelegationBehavior {
         bestTile = t;
       }
     }
-    if (bestTile === null) return null;
+    if (bestTile === null) {
+      this.note(UnitType.SAMLauncher, "noSpot");
+      return null;
+    }
+    this.note(UnitType.SAMLauncher, "built");
     return this.build(settings, UnitType.SAMLauncher, bestTile);
   }
 }

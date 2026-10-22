@@ -119,6 +119,8 @@ export enum GameUpdateType {
   DiplomacyNote,
   // 개선6 rear-defense delegation: what the delegated defender built.
   DelegationNote,
+  // 개선 13: the delegations' actual last decision (why they build / wait).
+  DelegationStatus,
 }
 
 export type GameUpdate =
@@ -146,7 +148,8 @@ export type GameUpdate =
   | GamePausedUpdate
   | DonateEventUpdate
   | DiplomacyNoteUpdate
-  | DelegationNoteUpdate;
+  | DelegationNoteUpdate
+  | DelegationStatusUpdate;
 
 export interface BonusEventUpdate {
   type: GameUpdateType.BonusEvent;
@@ -362,6 +365,47 @@ export interface DelegationNoteUpdate {
   unit: UnitType;
   tile: TileRef;
   cost: number;
+}
+
+/**
+ * 개선 13: what one delegation's last build attempt actually decided, per
+ * structure kind. Emitted by the engine (not derived by the client from
+ * gold alone) so the panel explains the real decision.
+ */
+export type DelegationResult =
+  | "built" // started a construction on this attempt
+  | "budget" // wanted/allowed to build but gold - cost < reserve floor
+  | "noNeed" // nothing of this kind is needed right now
+  | "noSpot" // needed and affordable, but no valid tile was found
+  | "userOff" // the player switched this structure off
+  | "ruleOff" // disabled by the game rules
+  | "needTiles" // economy: not enough territory for a first city
+  | "needCity"; // economy: a factory needs at least one city first
+
+export interface DelegationStatusItem {
+  unit: UnitType;
+  result: DelegationResult;
+  /** Construction cost now (0 when unknown). */
+  cost: number;
+  /** Gold missing before the build fits above the floor (budget only). */
+  shortfall: number;
+  /** needTiles: tiles owned. Otherwise 0. */
+  have: number;
+  /** needTiles: tiles required. Otherwise 0. */
+  need: number;
+}
+
+export interface DelegationStatusUpdate {
+  type: GameUpdateType.DelegationStatus;
+  kind: "defense" | "economy";
+  gold: number;
+  /** This delegation's own anchored reserve floor. */
+  ownReserve: number;
+  /** Floor of the other delegation that is also kept (economy only). */
+  otherReserve: number;
+  /** Ticks left of the post-build wait (0 = attempting every tick). */
+  cooldown: number;
+  items: DelegationStatusItem[];
 }
 
 export interface TargetPlayerUpdate {

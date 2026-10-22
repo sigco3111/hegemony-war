@@ -7,6 +7,7 @@ import {
 } from "@openfront/engine-api/game/GameTypes";
 import {
   DelegationNoteUpdate,
+  DelegationStatusUpdate,
   GameUpdateType,
 } from "@openfront/engine-api/game/GameUpdates";
 import { delegationZoneRadius } from "@openfront/engine-api/game/DefenseDelegation";
@@ -132,6 +133,30 @@ describe("DefenseDelegation (engine tick loop, deployed wiring)", () => {
     const { notes } = tickCollecting(game, 120);
     expect(notes).toHaveLength(0);
     expect(player.units(UnitType.DefensePost)).toHaveLength(0);
+  });
+
+  it("status explains a budget hold with the engine's own cost, floor and shortfall", async () => {
+    const { game, player, enemy } = await setupDelegation();
+    const cost = game.unitInfo(UnitType.DefensePost).cost(game, player);
+    player.addGold(cost - player.gold());
+    game.addExecution(new DefenseDelegationExecution(player, true, 50));
+    game.addExecution(new AttackExecution(50_000, enemy, player.id()));
+    let last: DelegationStatusUpdate | null = null;
+    for (let i = 0; i < 60; i++) {
+      const u = game.executeNextTick();
+      for (const s of (u[GameUpdateType.DelegationStatus] ??
+        []) as DelegationStatusUpdate[]) {
+        if (s.kind === "defense") last = s;
+      }
+    }
+    expect(last).not.toBeNull();
+    const post = last!.items.find((i) => i.unit === UnitType.DefensePost)!;
+    expect(post.result).toBe("budget");
+    expect(post.cost).toBe(Number(cost));
+    expect(last!.ownReserve).toBe(Number(cost / 2n));
+    expect(post.shortfall).toBe(
+      Number(cost) + last!.ownReserve - last!.gold,
+    );
   });
 
   it("anchor is fixed at switch-on: consecutive builds stop at the original floor, not a ratcheting one", async () => {

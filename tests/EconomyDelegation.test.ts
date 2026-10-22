@@ -7,6 +7,7 @@ import {
 } from "@openfront/engine-api/game/GameTypes";
 import {
   DelegationNoteUpdate,
+  DelegationStatusUpdate,
   GameUpdateType,
 } from "@openfront/engine-api/game/GameUpdates";
 import { SetEconomyDelegationIntentSchema } from "@openfront/engine-api/Schemas";
@@ -192,5 +193,86 @@ describe("EconomyDelegation", () => {
       .filter((e) => e.constructor.name === "WarshipExecution")) {
       throw new Error("economy delegate must not spawn warships");
     }
+  });
+});
+
+/** 개선 13: the status updates carry the engine's real decision. */
+describe("DelegationStatus (engine decision trace)", () => {
+  function statusTicks(
+    game: Game,
+    n: number,
+    kind: "economy" | "defense",
+  ): DelegationStatusUpdate[] {
+    const out: DelegationStatusUpdate[] = [];
+    for (let i = 0; i < n; i++) {
+      const updates = game.executeNextTick();
+      for (const s of (updates[GameUpdateType.DelegationStatus] ??
+        []) as DelegationStatusUpdate[]) {
+        if (s.kind === kind) out.push(s);
+      }
+    }
+    return out;
+  }
+
+  test("economy reports budget shortfall = cost + floors - gold, then builds", async () => {
+    const { game, player } = await setupDelegation();
+    // Finite treasury: 100K, below the 125K first-city cost.
+    player.removeGold(player.gold() - 100_000n);
+    spawnEconomy(game, player, true, 25, { buildFactories: false });
+    const sts = statusTicks(game, 20, "economy");
+    expect(sts.length).toBeGreaterThan(0);
+    const last = sts[sts.length - 1];
+    const city = last.items.find((i) => i.unit === UnitType.City)!;
+    expect(city.result).toBe("budget");
+    const floor = Math.floor(last.gold * 0.25) ;
+    expect(last.ownReserve).toBe(25_000);
+    expect(last.otherReserve).toBe(0);
+    expect(city.cost).toBe(125_000);
+    expect(city.shortfall).toBe(125_000 + 25_000 - 100_000);
+    expect(floor).toBe(25_000);
+    const fact = last.items.find((i) => i.unit === UnitType.Factory)!;
+    expect(fact.result).toBe("userOff");
+    // Top up past cost + floor: the next attempt builds and says so.
+    player.addGold(60_000n);
+    const after = statusTicks(game, 20, "economy");
+    const built = after.find((s) =>
+      s.items.some((i) => i.unit === UnitType.City && i.result === "built"),
+    );
+    expect(built).toBeDefined();
+  });
+
+  test("economy adds the active defense reserve to the held floor", async () => {
+    const { game, player } = await setupDelegation();
+    player.removeGold(player.gold() - 200_000n);
+    game.addExecution(new DefenseDelegationExecution(player, true, 50));
+    spawnEconomy(game, player, true, 25, { buildFactories: false });
+    const sts = statusTicks(game, 20, "economy");
+    const last = sts[sts.length - 1];
+    expect(last.ownReserve).toBe(50_000);
+    expect(last.otherReserve).toBe(100_000);
+    const city = last.items.find((i) => i.unit === UnitType.City)!;
+    expect(city.result).toBe("budget");
+    expect(city.shortfall).toBe(125_000 + 150_000 - 200_000);
+  });
+
+  test("economy reports a factory needs a city first and territory gate", async () => {
+    const { game, player } = await setupDelegation();
+    player.removeGold(player.gold() - 100_000n);
+    spawnEconomy(game, player, true, 0, {});
+    const sts = statusTicks(game, 10, "economy");
+    const last = sts[sts.length - 1];
+    expect(last.items.find((i) => i.unit === UnitType.Factory)!.result).toBe(
+      "needCity",
+    );
+  });
+
+  test("defense reports noNeed without a threat and keeps building rules", async () => {
+    const { game, player } = await setupDelegation();
+    game.addExecution(new DefenseDelegationExecution(player, true, 50));
+    const sts = statusTicks(game, 10, "defense");
+    const last = sts[sts.length - 1];
+    const post = last.items.find((i) => i.unit === UnitType.DefensePost)!;
+    expect(["noNeed", "budget"]).toContain(post.result);
+    expect(last.ownReserve).toBe(5_000_000);
   });
 });

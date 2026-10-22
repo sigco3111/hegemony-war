@@ -7,6 +7,10 @@ import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
 import { simpleHash } from "@openfront/engine-lib/Util";
 import { z } from "zod";
 import { Gold } from "@openfront/engine-api/game/GameTypes";
+import {
+  DelegationStatusItem,
+  GameUpdateType,
+} from "@openfront/engine-api/game/GameUpdates";
 import { Execution, Game, Player } from "../game/Game";
 import { DefenseDelegationExecution } from "./DefenseDelegationExecution";
 import { execSnapshotType } from "../snapshot/ExecutionSnapshot";
@@ -123,23 +127,48 @@ export class EconomyDelegationExecution implements Execution {
     return 0n;
   }
 
+  /** Engine ticks between two status updates sent to the panel. */
+  private static readonly STATUS_EVERY = 5;
+  private lastItems: DelegationStatusItem[] = [];
+
+  private emitStatus(ticks: number, own: bigint, defense: bigint): void {
+    if (this.mgRef === null) return;
+    if (ticks % EconomyDelegationExecution.STATUS_EVERY !== 0) return;
+    this.mgRef.addUpdate({
+      type: GameUpdateType.DelegationStatus,
+      kind: "economy",
+      gold: Number(this.player.gold()),
+      ownReserve: Number(own),
+      otherReserve: Number(defense),
+      cooldown: Math.max(0, BUILD_GAP_TICKS - (ticks - this.lastBuildTick)),
+      items: this.lastItems,
+    });
+  }
+
   tick(ticks: number): void {
     if (!this.player.isAlive()) {
       this.active = false;
       return;
     }
-    if (ticks - this.lastBuildTick < BUILD_GAP_TICKS) return;
+    const defense = this.defenseFloorRef();
+    const own = (this.anchorGold * BigInt(this.reservePercent)) / 100n;
+    if (ticks - this.lastBuildTick < BUILD_GAP_TICKS) {
+      this.emitStatus(ticks, own, defense);
+      return;
+    }
     const settings: EconomyDelegationSettings = {
       enabled: this.enabled,
       reservePercent: this.reservePercent,
       anchorGold: this.anchorGold,
       buildCities: this.buildCities,
       buildFactories: this.buildFactories,
-      defenseFloor: this.behavior ? this.defenseFloorRef() : 0n,
+      defenseFloor: this.behavior ? defense : 0n,
     };
     if (this.behavior?.tryBuild(settings)) {
       this.lastBuildTick = ticks;
     }
+    if (this.behavior) this.lastItems = this.behavior.lastItems();
+    this.emitStatus(ticks, own, defense);
   }
 
   /** Set by init so tick can reach the game for the defense-floor lookup. */

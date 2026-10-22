@@ -83,6 +83,7 @@ export const UPDATE_TYPE_ROUTING: Record<
   DonateEvent: "misc",
   DiplomacyNote: "misc",
   DelegationNote: "misc",
+  DelegationStatus: "misc",
 };
 
 /**

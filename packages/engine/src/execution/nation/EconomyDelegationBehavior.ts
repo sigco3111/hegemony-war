@@ -7,7 +7,10 @@ import {
 } from "@openfront/engine-api/game/EconomyDelegation";
 import { TileRef } from "@openfront/engine-api/game/GameMap";
 import { Gold, UnitType } from "@openfront/engine-api/game/GameTypes";
-import { GameUpdateType } from "@openfront/engine-api/game/GameUpdates";
+import {
+  DelegationStatusItem,
+  GameUpdateType,
+} from "@openfront/engine-api/game/GameUpdates";
 import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
 import { Game, Player } from "../../game/Game";
 import { ConstructionExecution } from "../ConstructionExecution";
@@ -60,10 +63,12 @@ export class EconomyDelegationBehavior {
    * city. Structure kinds the player switched off are skipped entirely.
    */
   tryBuild(settings: EconomyDelegationSettings): UnitType | null {
+    this.items = [];
     if (!settings.enabled || !this.player.isAlive()) return null;
     const config = this.game.config();
     const cities = this.player.unitsOwned(UnitType.City);
     const factories = this.player.unitsOwned(UnitType.Factory);
+    const tiles = this.player.numTilesOwned();
     const factoryDue =
       settings.buildFactories &&
       !config.isUnitDisabled(UnitType.Factory) &&
@@ -73,7 +78,26 @@ export class EconomyDelegationBehavior {
     const cityDue =
       settings.buildCities &&
       !config.isUnitDisabled(UnitType.City) &&
-      this.player.numTilesOwned() >= ECONOMY_MIN_TILES_FOR_CITY;
+      tiles >= ECONOMY_MIN_TILES_FOR_CITY;
+    // Static reasons a kind is not even attempted (decision trace).
+    const factoryStatic: DelegationStatusItem | null = !settings.buildFactories
+      ? this.item(UnitType.Factory, "userOff")
+      : config.isUnitDisabled(UnitType.Factory)
+        ? this.item(UnitType.Factory, "ruleOff")
+        : cities === 0
+          ? this.item(UnitType.Factory, "needCity")
+          : null;
+    const cityStatic: DelegationStatusItem | null = !settings.buildCities
+      ? this.item(UnitType.City, "userOff")
+      : config.isUnitDisabled(UnitType.City)
+        ? this.item(UnitType.City, "ruleOff")
+        : tiles < ECONOMY_MIN_TILES_FOR_CITY
+          ? {
+              ...this.item(UnitType.City, "needTiles"),
+              have: tiles,
+              need: ECONOMY_MIN_TILES_FOR_CITY,
+            }
+          : null;
     if (factoryDue) {
       const built = this.tryPlace(settings, UnitType.Factory);
       if (built !== null) return built;
@@ -89,9 +113,30 @@ export class EconomyDelegationBehavior {
       cities > 0 &&
       !config.isUnitDisabled(UnitType.Factory)
     ) {
-      return this.tryPlace(settings, UnitType.Factory);
+      const built = this.tryPlace(settings, UnitType.Factory);
+      if (built !== null) return built;
     }
+    if (factoryStatic !== null) this.items.push(factoryStatic);
+    if (cityStatic !== null) this.items.push(cityStatic);
     return null;
+  }
+
+  /** Trace of the last tryBuild: one entry per structure kind considered. */
+  private items: DelegationStatusItem[] = [];
+  lastItems(): DelegationStatusItem[] {
+    return this.items;
+  }
+
+  private item(
+    unit: UnitType,
+    result: DelegationStatusItem["result"],
+    shortfall = 0,
+  ): DelegationStatusItem {
+    let cost = 0;
+    if (result !== "userOff" && result !== "ruleOff") {
+      cost = Number(this.cost(unit));
+    }
+    return { unit, result, cost, shortfall, have: 0, need: 0 };
   }
 
   private cost(type: UnitType): Gold {
@@ -126,7 +171,14 @@ export class EconomyDelegationBehavior {
     settings: EconomyDelegationSettings,
     type: UnitType,
   ): UnitType | null {
-    if (!this.withinBudget(settings, type)) return null;
+    if (!this.withinBudget(settings, type)) {
+      const floor =
+        (settings.anchorGold * BigInt(settings.reservePercent)) / 100n +
+        settings.defenseFloor;
+      const short = this.cost(type) + floor - this.player.gold();
+      this.items.push(this.item(type, "budget", Number(short)));
+      return null;
+    }
     const samples = randTerritoryTileArray(
       this.random,
       this.game,
@@ -143,7 +195,11 @@ export class EconomyDelegationBehavior {
         bestValue = value;
       }
     }
-    if (bestTile === null) return null;
+    if (bestTile === null) {
+      this.items.push(this.item(type, "noSpot"));
+      return null;
+    }
+    this.items.push(this.item(type, "built"));
     this.game.addExecution(
       new ConstructionExecution(this.player, type, bestTile),
     );

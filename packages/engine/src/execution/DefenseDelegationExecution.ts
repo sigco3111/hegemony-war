@@ -8,6 +8,10 @@ import { simpleHash } from "@openfront/engine-lib/Util";
 import { z } from "zod";
 import { DefensePriority } from "@openfront/engine-api/game/DefenseDelegation";
 import { TileRef } from "@openfront/engine-api/game/GameMap";
+import {
+  DelegationStatusItem,
+  GameUpdateType,
+} from "@openfront/engine-api/game/GameUpdates";
 import { Execution, Game, Player } from "../game/Game";
 import { execSnapshotType } from "../snapshot/ExecutionSnapshot";
 import type {
@@ -106,6 +110,7 @@ export class DefenseDelegationExecution implements Execution {
     this.anchorGold = inherited ?? this.player.gold();
     this.random = new PseudoRandom(simpleHash(this.player.id()));
     this.behavior = new DefenseDelegationBehavior(this.random, mg, this.player);
+    this.mgRef = mg;
   }
 
   private deactivate(): void {
@@ -121,12 +126,34 @@ export class DefenseDelegationExecution implements Execution {
     return (this.anchorGold * BigInt(this.reservePercent)) / 100n;
   }
 
+  /** Engine ticks between two status updates sent to the panel. */
+  private static readonly STATUS_EVERY = 5;
+  private mgRef: Game | null = null;
+  private lastItems: DelegationStatusItem[] = [];
+
+  private emitStatus(ticks: number): void {
+    if (this.mgRef === null) return;
+    if (ticks % DefenseDelegationExecution.STATUS_EVERY !== 0) return;
+    this.mgRef.addUpdate({
+      type: GameUpdateType.DelegationStatus,
+      kind: "defense",
+      gold: Number(this.player.gold()),
+      ownReserve: Number(this.reserveFloor()),
+      otherReserve: 0,
+      cooldown: Math.max(0, BUILD_GAP_TICKS - (ticks - this.lastBuildTick)),
+      items: this.lastItems,
+    });
+  }
+
   tick(ticks: number): void {
     if (!this.player.isAlive()) {
       this.active = false;
       return;
     }
-    if (ticks - this.lastBuildTick < BUILD_GAP_TICKS) return;
+    if (ticks - this.lastBuildTick < BUILD_GAP_TICKS) {
+      this.emitStatus(ticks);
+      return;
+    }
     const settings: DefenseDelegationSettings = {
       enabled: this.enabled,
       reservePercent: this.reservePercent,
@@ -139,6 +166,10 @@ export class DefenseDelegationExecution implements Execution {
     if (this.behavior?.tryBuild(settings)) {
       this.lastBuildTick = ticks;
     }
+    if (this.behavior) {
+      this.lastItems = this.behavior.lastItems(this.reserveFloor());
+    }
+    this.emitStatus(ticks);
   }
 
   snapshot(w: SnapshotWriter): ExecRecord {
@@ -172,6 +203,7 @@ export class DefenseDelegationExecution implements Execution {
       r.game,
       this.player,
     );
+    this.mgRef = r.game;
     this.active = this.enabled && this.player.isAlive();
   }
 }
