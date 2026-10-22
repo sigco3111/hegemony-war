@@ -13,7 +13,7 @@ import { gamePortal } from "../../GamePortal";
 import { showInGameAlert, showInGameConfirm } from "../../InGameModal";
 import { TogglePauseIntentEvent } from "../../InputHandler";
 import { PauseGameIntentEvent, SendWinnerEvent } from "../../Transport";
-import { consumeResumedPaused } from "../../SaveGame";
+import { consumeResumedPaused, noteHudClock } from "../../SaveGame";
 import { ToggleWarPlanPanelEvent } from "../../WarPlan";
 import { homeHref, showToast, translateText } from "../../Utils";
 import { GameView } from "../../view";
@@ -172,6 +172,7 @@ export class GameRightSidebar extends LitElement implements Controller {
     }
 
     const elapsedSeconds = Math.floor(this.game.elapsedGameSeconds());
+    noteHudClock(elapsedSeconds);
 
     if (this.hasWinner) {
       return;

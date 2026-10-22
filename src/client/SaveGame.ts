@@ -29,11 +29,14 @@ export interface SavedMatch {
   turns: Turn[];
   /** 일시정지 중 접수돼 아직 턴에 실리지 않은 위임 인텐트(긴급 중지 포함). */
   pending?: StampedIntent[];
+  /** 저장 시점의 HUD 시계(초). 스폰 단계를 뺀 게임 시간. */
+  clockSec?: number;
 }
 
 export interface SavedMatchSummary {
   savedAt: number;
   ticks: number;
+  clockSec: number | null;
   map: string;
   difficulty: string;
   sameBuild: boolean;
@@ -107,8 +110,15 @@ let blockedGameID: string | null = null;
 let resume: SavedMatch | null = null;
 let resumedDelegation: ResumedDelegation | null = null;
 
+let hudClockSec: number | null = null;
+/** HUD(우측 시계)가 보여주는 게임 시간을 알려 저장 카드와 같은 기준을 쓰게 한다. */
+export function noteHudClock(sec: number): void {
+  hudClockSec = sec;
+}
+
 export function setActiveGame(gameID: string): void {
   activeGameID = gameID;
+  hudClockSec = null;
 }
 
 /** 판이 끝났다: 저장을 지우고 이 판은 다시 저장하지 않는다. */
@@ -159,6 +169,7 @@ export function buildSavedMatch(
     gameStartInfo,
     turns,
     pending,
+    clockSec: hudClockSec ?? undefined,
   };
 }
 
@@ -167,6 +178,7 @@ export function summarize(m: SavedMatch): SavedMatchSummary {
   return {
     savedAt: m.savedAt,
     ticks: m.turns.length,
+    clockSec: typeof m.clockSec === "number" ? m.clockSec : null,
     map: String(m.gameStartInfo.config.gameMap),
     difficulty: String(m.gameStartInfo.config.difficulty),
     sameBuild,

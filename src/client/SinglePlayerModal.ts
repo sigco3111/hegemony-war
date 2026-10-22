@@ -1139,8 +1139,10 @@ export class SinglePlayerModal extends BaseModal {
     const m = this.savedMatch;
     if (m === null) return null;
     const sum = summarize(m);
-    const minutes = Math.floor(sum.ticks / 600);
-    const secs = Math.floor((sum.ticks % 600) / 10);
+    // 화면 시계와 같은 기준(스폰 단계 제외). 없으면 전체 틱으로 대체한다.
+    const baseSec = sum.clockSec ?? Math.floor(sum.ticks / 10);
+    const minutes = Math.floor(baseSec / 60);
+    const secs = baseSec % 60;
     const when = new Date(sum.savedAt).toLocaleString();
     return html`<div
       class="mb-4 px-4 py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10"
